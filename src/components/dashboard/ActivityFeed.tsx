@@ -1,4 +1,4 @@
-import { FileText, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { BookOpen, FileText, HelpCircle, GraduationCap, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Activity {
@@ -38,11 +38,11 @@ const statusConfig = {
   },
 };
 
-const typeIcons = {
-  lab: "🧪",
-  assignment: "📝",
-  quiz: "❓",
-  exam: "📊",
+const typeConfig = {
+  lab: { icon: BookOpen, className: "bg-primary/20 text-primary" },
+  assignment: { icon: FileText, className: "bg-secondary/20 text-secondary" },
+  quiz: { icon: HelpCircle, className: "bg-info/20 text-info" },
+  exam: { icon: GraduationCap, className: "bg-warning/20 text-warning" },
 };
 
 const ActivityFeed = ({ activities }: ActivityFeedProps) => {
@@ -51,6 +51,8 @@ const ActivityFeed = ({ activities }: ActivityFeedProps) => {
       {activities.map((activity, index) => {
         const status = statusConfig[activity.status];
         const StatusIcon = status.icon;
+        const typeInfo = typeConfig[activity.type];
+        const TypeIcon = typeInfo.icon;
 
         return (
           <div
@@ -59,8 +61,11 @@ const ActivityFeed = ({ activities }: ActivityFeedProps) => {
             style={{ animationDelay: `${index * 50}ms` }}
           >
             {/* Type Icon */}
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted text-xl">
-              {typeIcons[activity.type]}
+            <div className={cn(
+              "flex h-11 w-11 items-center justify-center rounded-xl",
+              typeInfo.className
+            )}>
+              <TypeIcon className="h-5 w-5" />
             </div>
 
             {/* Content */}

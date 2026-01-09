@@ -8,6 +8,7 @@ import Grades from "./pages/Grades";
 import Materials from "./pages/Materials";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
+import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 // Admin Pages
@@ -28,6 +29,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Auth */}
+          <Route path="/login" element={<Login />} />
+          
           {/* Student Routes */}
           <Route path="/" element={<Index />} />
           <Route path="/grades" element={<Grades />} />
