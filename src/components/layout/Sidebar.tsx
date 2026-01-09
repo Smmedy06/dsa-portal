@@ -60,7 +60,7 @@ const Sidebar = () => {
 
         <Separator className="my-4" />
 
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-3 mt-2">
           Quick Access
         </p>
         {secondaryNavItems.map((item) => {

@@ -43,7 +43,7 @@ const Index = () => {
         {/* Welcome Section */}
         <div className="animate-fade-in">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">
-            Welcome back! 👋
+            Welcome back!
           </h1>
           <p className="text-muted-foreground">
             Here's your performance overview for Data Structures & Algorithms
