@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import AdminHeader from "./AdminHeader";
 import AdminSidebar from "./AdminSidebar";
+import AdminMobileNav from "./AdminMobileNav";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -16,6 +17,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
           {children}
         </main>
       </div>
+      <AdminMobileNav />
     </div>
   );
 };

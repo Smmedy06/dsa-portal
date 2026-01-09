@@ -10,9 +10,9 @@ const AdminHeader = () => {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary">
             <span className="text-lg font-bold text-secondary-foreground">TA</span>
           </div>
-          <div className="hidden sm:block">
-            <h1 className="text-lg font-semibold text-foreground">DSA Portal</h1>
-            <p className="text-xs text-muted-foreground">Admin Panel</p>
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Admin Panel</h1>
+            <p className="text-xs text-muted-foreground hidden sm:block">DSA Portal</p>
           </div>
         </div>
 
