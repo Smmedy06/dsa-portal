@@ -25,7 +25,7 @@ const StatCard = ({
 }: StatCardProps) => {
   return (
     <div className={cn(
-      "relative overflow-hidden rounded-2xl p-5 transition-all duration-300 hover:shadow-card hover:-translate-y-0.5",
+      "relative overflow-hidden rounded-2xl p-5 transition-all duration-300 hover:shadow-card hover:-translate-y-0.5 min-w-0",
       variant === "primary" && "bg-primary text-primary-foreground",
       variant === "secondary" && "bg-secondary text-secondary-foreground",
       variant === "default" && "bg-card border border-border",
@@ -33,7 +33,7 @@ const StatCard = ({
     )}>
       {/* Background Decoration */}
       {variant !== "default" && (
-        <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+        <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-white/10 pointer-events-none" />
       )}
       
       <div className="relative">
@@ -56,7 +56,7 @@ const StatCard = ({
         </div>
 
         {/* Value */}
-        <p className="text-3xl font-bold tracking-tight mb-1">{value}</p>
+        <p className="text-2xl sm:text-3xl font-bold tracking-tight mb-1 truncate">{value}</p>
 
         {/* Footer */}
         <div className="flex items-center gap-2">

@@ -1,88 +1,214 @@
-import { useState } from "react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Eye, Lock, CheckCircle2, Clock } from "lucide-react";
+import { Download, FileText, Lock, CheckCircle2, Clock, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Material {
+interface Lab {
   id: number;
   title: string;
-  description: string;
-  dueDate: string;
-  status: "completed" | "in_progress" | "upcoming" | "overdue";
-  files: { name: string; type: string }[];
+  takenDate: string;
+  labPdfAvailable: boolean;
   solutionAvailable: boolean;
 }
 
-const labsData: Material[] = [
-  { id: 1, title: "Lab 1: Introduction to Arrays", description: "Learn basic array operations and complexity analysis", dueDate: "Sep 5, 2025", status: "completed", files: [{ name: "lab1.pdf", type: "pdf" }, { name: "starter.cpp", type: "code" }], solutionAvailable: true },
-  { id: 2, title: "Lab 2: Linked Lists", description: "Implement singly and doubly linked lists", dueDate: "Sep 12, 2025", status: "completed", files: [{ name: "lab2.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 3, title: "Lab 3: Stacks & Queues", description: "Stack and queue implementations using arrays and linked lists", dueDate: "Sep 19, 2025", status: "completed", files: [{ name: "lab3.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 4, title: "Lab 4: Recursion", description: "Recursive problem solving techniques", dueDate: "Sep 26, 2025", status: "completed", files: [{ name: "lab4.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 5, title: "Lab 5: Trees Basics", description: "Binary tree traversals and operations", dueDate: "Oct 3, 2025", status: "completed", files: [{ name: "lab5.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 6, title: "Lab 6: Binary Trees", description: "BST operations and balancing concepts", dueDate: "Oct 10, 2025", status: "completed", files: [{ name: "lab6.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 7, title: "Lab 7: AVL Trees", description: "Self-balancing AVL tree implementation", dueDate: "Oct 17, 2025", status: "completed", files: [{ name: "lab7.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 8, title: "Lab 8: Binary Search Trees", description: "Advanced BST operations", dueDate: "Jan 8, 2026", status: "completed", files: [{ name: "lab8.pdf", type: "pdf" }], solutionAvailable: false },
-  { id: 9, title: "Lab 9: Hash Tables", description: "Hash table implementation with collision handling", dueDate: "Jan 15, 2026", status: "upcoming", files: [{ name: "lab9.pdf", type: "pdf" }], solutionAvailable: false },
+interface Assignment {
+  id: number;
+  title: string;
+  submissionDeadline: string;
+  status: "submitted" | "pending" | "overdue";
+  assignmentPdfAvailable: boolean;
+  solutionAvailable: boolean;
+}
+
+interface Quiz {
+  id: number;
+  title: string;
+  takenDate: string;
+  status: "completed" | "upcoming";
+  quizPdfAvailable: boolean;
+  solutionAvailable: boolean;
+}
+
+const labsData: Lab[] = [
+  { id: 1, title: "Introduction to Arrays", takenDate: "Sep 5, 2025", labPdfAvailable: true, solutionAvailable: true },
+  { id: 2, title: "Linked Lists", takenDate: "Sep 12, 2025", labPdfAvailable: true, solutionAvailable: true },
+  { id: 3, title: "Stacks & Queues", takenDate: "Sep 19, 2025", labPdfAvailable: true, solutionAvailable: true },
+  { id: 4, title: "Recursion", takenDate: "Sep 26, 2025", labPdfAvailable: true, solutionAvailable: true },
+  { id: 5, title: "Trees Basics", takenDate: "Oct 3, 2025", labPdfAvailable: true, solutionAvailable: true },
+  { id: 6, title: "Binary Trees", takenDate: "Oct 10, 2025", labPdfAvailable: true, solutionAvailable: true },
+  { id: 7, title: "AVL Trees", takenDate: "Oct 17, 2025", labPdfAvailable: true, solutionAvailable: true },
+  { id: 8, title: "Binary Search Trees", takenDate: "Jan 8, 2026", labPdfAvailable: true, solutionAvailable: false },
 ];
 
-const assignmentsData: Material[] = [
-  { id: 1, title: "Assignment 1: Array Operations", description: "Implement various array algorithms", dueDate: "Sep 15, 2025", status: "completed", files: [{ name: "assignment1.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 2, title: "Assignment 2: List Implementations", description: "Build a complete linked list library", dueDate: "Oct 1, 2025", status: "completed", files: [{ name: "assignment2.pdf", type: "pdf" }], solutionAvailable: true },
-  { id: 3, title: "Assignment 3: Heap Implementation", description: "Min and max heap with heapsort", dueDate: "Dec 28, 2025", status: "overdue", files: [{ name: "assignment3.pdf", type: "pdf" }], solutionAvailable: false },
-  { id: 4, title: "Assignment 4: Graph Algorithms", description: "BFS, DFS, and shortest path algorithms", dueDate: "Jan 12, 2026", status: "in_progress", files: [{ name: "assignment4.pdf", type: "pdf" }], solutionAvailable: false },
+const assignmentsData: Assignment[] = [
+  { id: 1, title: "Array Operations", submissionDeadline: "Sep 15, 2025", status: "submitted", assignmentPdfAvailable: true, solutionAvailable: true },
+  { id: 2, title: "List Implementations", submissionDeadline: "Oct 1, 2025", status: "submitted", assignmentPdfAvailable: true, solutionAvailable: true },
+  { id: 3, title: "Heap Implementation", submissionDeadline: "Dec 28, 2025", status: "overdue", assignmentPdfAvailable: true, solutionAvailable: false },
+  { id: 4, title: "Graph Algorithms", submissionDeadline: "Jan 12, 2026", status: "pending", assignmentPdfAvailable: true, solutionAvailable: false },
 ];
 
-const statusConfig = {
-  completed: { icon: CheckCircle2, label: "Completed", className: "bg-success/20 text-foreground" },
-  in_progress: { icon: Clock, label: "In Progress", className: "bg-info/20 text-secondary" },
-  upcoming: { icon: Clock, label: "Upcoming", className: "bg-muted text-muted-foreground" },
-  overdue: { icon: Clock, label: "Overdue", className: "bg-destructive/20 text-destructive" },
+const quizzesData: Quiz[] = [
+  { id: 1, title: "Arrays & Complexity", takenDate: "Sep 10, 2025", status: "completed", quizPdfAvailable: true, solutionAvailable: true },
+  { id: 2, title: "Linked Lists", takenDate: "Sep 24, 2025", status: "completed", quizPdfAvailable: true, solutionAvailable: true },
+  { id: 3, title: "Stacks & Queues", takenDate: "Oct 8, 2025", status: "completed", quizPdfAvailable: true, solutionAvailable: true },
+  { id: 4, title: "Trees", takenDate: "Oct 22, 2025", status: "completed", quizPdfAvailable: true, solutionAvailable: true },
+  { id: 5, title: "Sorting Algorithms", takenDate: "Jan 5, 2026", status: "completed", quizPdfAvailable: true, solutionAvailable: false },
+  { id: 6, title: "Trees & Graphs", takenDate: "Jan 18, 2026", status: "upcoming", quizPdfAvailable: false, solutionAvailable: false },
+];
+
+const LabCard = ({ lab }: { lab: Lab }) => {
+  return (
+    <div className="p-5 rounded-2xl bg-card border border-border hover:shadow-card transition-all duration-200">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex-1">
+          <h3 className="font-semibold text-foreground mb-1">Lab {lab.id}: {lab.title}</h3>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            <span>Taken: {lab.takenDate}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {lab.labPdfAvailable ? (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2">
+            <FileText className="h-4 w-4" />
+            Lab PDF
+            <Download className="h-3 w-3" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2" disabled>
+            <FileText className="h-4 w-4" />
+            Lab PDF
+          </Button>
+        )}
+        
+        {lab.solutionAvailable ? (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+            <FileText className="h-4 w-4" />
+            Solution
+            <Download className="h-3 w-3" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2" disabled>
+            <Lock className="h-4 w-4" />
+            Solution
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 };
 
-const MaterialCard = ({ material }: { material: Material }) => {
-  const status = statusConfig[material.status];
+const AssignmentCard = ({ assignment }: { assignment: Assignment }) => {
+  const statusConfig = {
+    submitted: { icon: CheckCircle2, label: "Submitted", className: "bg-success/20 text-foreground" },
+    pending: { icon: Clock, label: "Pending", className: "bg-info/20 text-secondary" },
+    overdue: { icon: Clock, label: "Overdue", className: "bg-destructive/20 text-destructive" },
+  };
+  
+  const status = statusConfig[assignment.status];
   const StatusIcon = status.icon;
 
   return (
     <div className="p-5 rounded-2xl bg-card border border-border hover:shadow-card transition-all duration-200">
       <div className="flex items-start justify-between gap-4 mb-3">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-foreground">{material.title}</h3>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className="font-semibold text-foreground">Assignment {assignment.id}: {assignment.title}</h3>
             <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium", status.className)}>
               <StatusIcon className="h-3 w-3" />
               {status.label}
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">{material.description}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
         <Clock className="h-4 w-4" />
-        <span>Due: {material.dueDate}</span>
+        <span>Deadline: {assignment.submissionDeadline}</span>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {material.files.map((file, i) => (
-          <Button key={i} variant="outline" size="sm" className="rounded-xl gap-2">
+        {assignment.assignmentPdfAvailable ? (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2">
             <FileText className="h-4 w-4" />
-            {file.name}
+            Assignment PDF
             <Download className="h-3 w-3" />
           </Button>
-        ))}
+        ) : (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2" disabled>
+            <FileText className="h-4 w-4" />
+            Assignment PDF
+          </Button>
+        )}
         
-        {material.solutionAvailable ? (
+        {assignment.solutionAvailable ? (
           <Button variant="outline" size="sm" className="rounded-xl gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-            <Eye className="h-4 w-4" />
-            View Solution
+            <FileText className="h-4 w-4" />
+            Solution
+            <Download className="h-3 w-3" />
           </Button>
         ) : (
           <Button variant="outline" size="sm" className="rounded-xl gap-2" disabled>
             <Lock className="h-4 w-4" />
-            Solution Locked
+            Solution
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const QuizCard = ({ quiz }: { quiz: Quiz }) => {
+  const isUpcoming = quiz.status === "upcoming";
+  
+  return (
+    <div className="p-5 rounded-2xl bg-card border border-border hover:shadow-card transition-all duration-200">
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className="font-semibold text-foreground">Quiz {quiz.id}: {quiz.title}</h3>
+            {isUpcoming && (
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-info/20 text-secondary">
+                <Clock className="h-3 w-3" />
+                Upcoming
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+        <Calendar className="h-4 w-4" />
+        <span>{isUpcoming ? "Scheduled:" : "Taken:"} {quiz.takenDate}</span>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {quiz.quizPdfAvailable ? (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2">
+            <FileText className="h-4 w-4" />
+            Quiz PDF
+            <Download className="h-3 w-3" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2" disabled>
+            <FileText className="h-4 w-4" />
+            Quiz PDF
+          </Button>
+        )}
+        
+        {quiz.solutionAvailable ? (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+            <FileText className="h-4 w-4" />
+            Solution
+            <Download className="h-3 w-3" />
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="rounded-xl gap-2" disabled>
+            <Lock className="h-4 w-4" />
+            Solution
           </Button>
         )}
       </div>
@@ -114,34 +240,25 @@ const Materials = () => {
 
           <TabsContent value="labs" className="mt-4 space-y-4">
             {labsData.map((lab) => (
-              <MaterialCard key={lab.id} material={lab} />
+              <LabCard key={lab.id} lab={lab} />
             ))}
           </TabsContent>
 
           <TabsContent value="assignments" className="mt-4 space-y-4">
             {assignmentsData.map((assignment) => (
-              <MaterialCard key={assignment.id} material={assignment} />
+              <AssignmentCard key={assignment.id} assignment={assignment} />
             ))}
           </TabsContent>
 
-          <TabsContent value="quizzes" className="mt-4">
-            <div className="text-center py-12 text-muted-foreground">
-              <HelpCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Quiz materials will appear here</p>
-            </div>
+          <TabsContent value="quizzes" className="mt-4 space-y-4">
+            {quizzesData.map((quiz) => (
+              <QuizCard key={quiz.id} quiz={quiz} />
+            ))}
           </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
   );
 };
-
-const HelpCircle = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-    <path d="M12 17h.01" />
-  </svg>
-);
 
 export default Materials;

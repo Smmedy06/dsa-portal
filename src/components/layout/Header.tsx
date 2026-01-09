@@ -35,10 +35,9 @@ const Header = ({ userName = "Student", rollNumber = "BCSF23M023" }: HeaderProps
 
         {/* Right Side */}
         <div className="flex items-center gap-2">
-          {/* Notifications */}
+          {/* Notifications - only shows when there are updates */}
           <Button variant="ghost" size="icon" className="relative rounded-xl hover:bg-muted">
             <Bell className="h-5 w-5 text-muted-foreground" />
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-secondary" />
           </Button>
 
           {/* User Profile */}
