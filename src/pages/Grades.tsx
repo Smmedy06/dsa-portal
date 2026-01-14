@@ -10,14 +10,14 @@ const GradeCard = ({ item }: { item: any }) => {
   // For bonus/penalty columns, show as single value (no percentage)
   const isBonusOrPenalty = item.isBonusOrPenalty;
   const percentage = isBonusOrPenalty ? 100 : (item.total > 0 ? Math.round((item.score / item.total) * 100) : 0);
-  
+
   return (
     <div className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border hover:shadow-soft transition-all">
       {!isBonusOrPenalty && (
-        <GradeDonutChart 
-          percentage={percentage} 
-          size="sm" 
-          label="" 
+        <GradeDonutChart
+          percentage={percentage}
+          size="sm"
+          label=""
         />
       )}
       {isBonusOrPenalty && (
@@ -48,19 +48,19 @@ const GradeCard = ({ item }: { item: any }) => {
   );
 };
 
-const CategorySummary = ({ 
-  title, 
-  score, 
-  total, 
-  count 
-}: { 
-  title: string; 
-  score: number; 
-  total: number; 
+const CategorySummary = ({
+  title,
+  score,
+  total,
+  count
+}: {
+  title: string;
+  score: number;
+  total: number;
   count: number;
 }) => {
   const percentage = total > 0 ? Math.round((score / total) * 100) : 0;
-  
+
   return (
     <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/50">
       <div className="flex-1">
@@ -105,6 +105,17 @@ const Grades = () => {
 
   useEffect(() => {
     if (profile?.roll_number) {
+      // Check for cached data first
+      const cached = sessionStorage.getItem(`grades-${profile.roll_number}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setGradeData(parsed);
+          setLoading(false);
+        } catch (e) {
+          console.error("Error parsing cached grades", e);
+        }
+      }
       fetchGrades();
     }
   }, [profile]);
@@ -113,9 +124,14 @@ const Grades = () => {
     if (!profile?.roll_number) return;
 
     try {
-      setLoading(true);
+      // Only set loading if we don't have data
+      if (gradeData.tabs.length === 0) {
+        setLoading(true);
+      }
       const data = await getStudentGrades(profile.roll_number, profile.section as 'CS-F24-M' | 'CS-F24-A' | undefined);
       setGradeData(data);
+      // Cache the fresh data
+      sessionStorage.setItem(`grades-${profile.roll_number}`, JSON.stringify(data));
     } catch (error: any) {
       console.error('Error fetching grades:', error);
     } finally {
@@ -133,7 +149,7 @@ const Grades = () => {
     // Otherwise show it (true or undefined)
     return true;
   });
-  
+
   // Calculate summary for each visible tab (exclude only "Extra" tab)
   const tabSummaries = visibleTabs
     .filter(tab => {
@@ -162,9 +178,9 @@ const Grades = () => {
     }
     return visibleTabs.length > 0 ? visibleTabs[0].name.toLowerCase().replace(/\s+/g, '-') : '';
   };
-  
+
   const [activeTab, setActiveTab] = useState(getDefaultTab());
-  
+
   // Update active tab when visible tabs are loaded (preserve selection if still valid)
   useEffect(() => {
     if (visibleTabs.length > 0 && !loading) {
@@ -181,7 +197,7 @@ const Grades = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, visibleTabs.length]);
 
-  if (loading) {
+  if (loading && gradeData.tabs.length === 0) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -194,7 +210,7 @@ const Grades = () => {
     );
   }
 
-  if (visibleTabs.length === 0) {
+  if (visibleTabs.length === 0 && !loading) {
     return (
       <AppLayout>
         <div className="space-y-6">
@@ -223,12 +239,12 @@ const Grades = () => {
         {tabSummaries.length > 0 && (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in" style={{ animationDelay: "100ms" }}>
             {tabSummaries.map((summary) => (
-              <CategorySummary 
+              <CategorySummary
                 key={summary.name}
-                title={summary.name} 
-                score={summary.score} 
-                total={summary.total} 
-                count={summary.count} 
+                title={summary.name}
+                score={summary.score}
+                total={summary.total}
+                count={summary.count}
               />
             ))}
           </div>
@@ -236,23 +252,23 @@ const Grades = () => {
 
         {/* Tabs - Dynamic based on visible tabs */}
         {visibleTabs.length > 0 && (
-          <Tabs 
-            value={activeTab || (visibleTabs.length > 0 ? visibleTabs[0].name.toLowerCase().replace(/\s+/g, '-') : '')} 
+          <Tabs
+            value={activeTab || (visibleTabs.length > 0 ? visibleTabs[0].name.toLowerCase().replace(/\s+/g, '-') : '')}
             onValueChange={(value) => {
               setActiveTab(value);
               sessionStorage.setItem('gradesActiveTab', value);
-            }} 
-            className="animate-fade-in" 
+            }}
+            className="animate-fade-in"
             style={{ animationDelay: "200ms" }}
           >
-            <TabsList className="bg-muted/50 p-1 rounded-xl grid grid-cols-3 sm:flex sm:flex-wrap gap-1">
+            <TabsList className="bg-muted/50 p-2 rounded-xl grid grid-cols-3 sm:flex sm:flex-wrap gap-3 sm:justify-start">
               {visibleTabs.map((tab) => {
                 const tabValue = tab.name.toLowerCase().replace(/\s+/g, '-');
                 return (
-                  <TabsTrigger 
+                  <TabsTrigger
                     key={tab.name}
-                    value={tabValue} 
-                    className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:ring-2 data-[state=active]:ring-primary/20 text-xs sm:text-sm truncate"
+                    value={tabValue}
+                    className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground text-xs sm:text-sm truncate px-3 py-1.5 shadow-sm transition-all"
                   >
                     <span className="truncate">{tab.name} ({tab.items.length})</span>
                   </TabsTrigger>

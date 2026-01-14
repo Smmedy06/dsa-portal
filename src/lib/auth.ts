@@ -62,7 +62,7 @@ export async function isUserAdmin(email: string): Promise<boolean> {
     .select('is_active')
     .eq('email', email.toLowerCase())
     .eq('is_active', true)
-    .single();
+    .maybeSingle();
 
   return !!adminData;
 }

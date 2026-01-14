@@ -27,14 +27,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      // Fetch user profile
+      const { data: userProfile, error: userError } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-      setProfile(data);
+      if (userError) throw userError;
+
+      // Fetch enrolled student details to get section
+      if (userProfile?.email) {
+        const { data: studentData } = await supabase
+          .from('enrolled_students')
+          .select('section, roll_number')
+          .eq('email', userProfile.email)
+          .maybeSingle();
+
+        if (studentData) {
+          // Merge section and roll_number if missing from user profile or to ensure accuracy
+          setProfile({
+            ...userProfile,
+            section: studentData.section || userProfile.section,
+            roll_number: studentData.roll_number || userProfile.roll_number
+          });
+          return;
+        }
+      }
+
+      setProfile(userProfile);
     } catch (error) {
       console.error('Error fetching profile:', error);
       setProfile(null);
@@ -54,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Profile can load in background
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (!mounted) return;
-      
+
       if (error) {
         console.error('Error getting session:', error);
         setLoading(false);
@@ -63,10 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       // Set loading to false immediately - don't wait for profile
       setLoading(false);
-      
+
       // Fetch profile in background (non-blocking)
       if (session?.user) {
         fetchProfile(session.user.id).catch(err => {
@@ -86,10 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       // Set loading to false immediately
       setLoading(false);
-      
+
       // Fetch profile in background (non-blocking)
       if (session?.user) {
         fetchProfile(session.user.id).catch(err => {

@@ -10,17 +10,17 @@ interface AppLayoutProps {
 const AppLayout = ({ children }: AppLayoutProps) => {
   return (
     <div className="min-h-screen bg-background">
+      {/* Fixed Header */}
+      <Header />
+
       <div className="flex">
-        {/* Desktop Sidebar */}
+        {/* Desktop Sidebar - fixed position handled in component */}
         <Sidebar />
-        
+
         {/* Main Content */}
-        <div className="flex-1 flex flex-col min-h-screen">
-          <Header />
-          <main className="flex-1 container py-6 pb-24 md:pb-6">
-            {children}
-          </main>
-        </div>
+        <main className="flex-1 container py-6 pb-24 md:pb-6 md:ml-64"> {/* Added left padding for fixed sidebar */}
+          {children}
+        </main>
       </div>
 
       {/* Mobile Bottom Navigation */}

@@ -56,14 +56,14 @@ const LabCard = ({ lab }: { lab: Lab }) => {
             <Download className="h-3 w-3" />
           </Button>
         ))}
-        
+
         {solutionFiles.length > 0 && solutionVisible ? (
           solutionFiles.map((file) => (
             <Button
               key={file.id}
-              variant="outline"
+              variant="default"
               size="sm"
-              className="rounded-xl gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+              className="rounded-xl gap-2 hover:bg-primary/90"
               onClick={() => handleDownload(file.file_url, file.file_name)}
             >
               <FileText className="h-4 w-4" />
@@ -92,8 +92,10 @@ const AssignmentCard = ({ assignment }: { assignment: Assignment }) => {
     active: { icon: Clock, label: "Active", className: "bg-info/20 text-secondary" },
     closed: { icon: CheckCircle2, label: "Closed", className: "bg-success/20 text-foreground" },
   };
-  
-  const status = statusConfig[assignment.status];
+
+  const isExpired = assignment.submission_deadline ? new Date(assignment.submission_deadline) < new Date() : false;
+  const effectiveStatus = isExpired ? 'closed' : assignment.status;
+  const status = statusConfig[effectiveStatus];
   const StatusIcon = status.icon;
 
   const handleDownload = async (fileUrl: string, fileName: string, fileType: 'assignment' | 'quiz') => {
@@ -144,13 +146,13 @@ const AssignmentCard = ({ assignment }: { assignment: Assignment }) => {
             <Download className="h-3 w-3" />
           </Button>
         ))}
-        
+
         {solutionFiles.map((file) => (
           <Button
             key={file.id}
-            variant="outline"
+            variant="default"
             size="sm"
-            className="rounded-xl gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            className="rounded-xl gap-2 hover:bg-primary/90"
             onClick={() => handleDownload(file.file_url, file.file_name, 'assignment')}
           >
             <FileText className="h-4 w-4" />
@@ -215,11 +217,11 @@ const QuizCard = ({ quiz }: { quiz: Quiz }) => {
         <Calendar className="h-4 w-4" />
         <span>
           {quiz.status === "upcoming" ? "Scheduled: " : "Taken: "}
-          {quiz.taken_date 
+          {quiz.taken_date
             ? new Date(quiz.taken_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-            : quiz.scheduled_date 
-            ? new Date(quiz.scheduled_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-            : 'Not set'}
+            : quiz.scheduled_date
+              ? new Date(quiz.scheduled_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+              : 'Not set'}
         </span>
       </div>
 
@@ -237,13 +239,13 @@ const QuizCard = ({ quiz }: { quiz: Quiz }) => {
             <Download className="h-3 w-3" />
           </Button>
         ))}
-        
+
         {solutionFiles.map((file) => (
           <Button
             key={file.id}
-            variant="outline"
+            variant="default"
             size="sm"
-            className="rounded-xl gap-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            className="rounded-xl gap-2 hover:bg-primary/90"
             onClick={() => handleDownload(file.file_url, file.file_name)}
           >
             <FileText className="h-4 w-4" />
@@ -307,7 +309,25 @@ const Materials = () => {
 
   const fetchMaterials = async () => {
     try {
-      setLoading(true);
+      // Check cache first
+      const cacheKey = 'materials-data';
+      const cached = sessionStorage.getItem(cacheKey);
+
+      if (cached) {
+        try {
+          const { labs: cachedLabs, assignments: cachedAssignments, quizzes: cachedQuizzes } = JSON.parse(cached);
+          setLabs(cachedLabs);
+          setAssignments(cachedAssignments);
+          setQuizzes(cachedQuizzes);
+          setLoading(false);
+        } catch (e) {
+          console.error("Error parsing cached materials", e);
+        }
+      }
+
+      // Only show loading if not loaded from cache
+      if (!cached) setLoading(true);
+
       const [labsData, assignmentsData, quizzesData] = await Promise.all([
         getAllLabs(),
         getAllAssignments(),
@@ -322,6 +342,13 @@ const Materials = () => {
       setLabs(sortedLabs);
       setAssignments(assignmentsData);
       setQuizzes(quizzesData);
+
+      // Update cache
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        labs: sortedLabs,
+        assignments: assignmentsData,
+        quizzes: quizzesData
+      }));
     } catch (error: any) {
       console.error('Error fetching materials:', error);
     } finally {

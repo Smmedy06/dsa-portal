@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Home, BarChart3, FolderOpen, Settings, LogOut, BookOpen, FileText, HelpCircle } from "lucide-react";
+import { Home, BarChart3, FolderOpen, Mail, LogOut, BookOpen, FileText, HelpCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,35 +33,26 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-card border-r border-border p-4">
-      {/* Logo */}
-      <div className="flex items-center gap-3 px-2 mb-8">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary shadow-soft">
-          <span className="text-lg font-bold text-primary-foreground">DS</span>
-        </div>
-        <div>
-          <h1 className="text-lg font-semibold text-foreground">DSA Portal</h1>
-          <p className="text-xs text-muted-foreground">PUCIT • Fall 2024</p>
-        </div>
-      </div>
-
+    <aside className="hidden md:flex flex-col w-64 h-[calc(100vh-4rem)] fixed top-16 left-0 bg-card border-r border-border p-4">
       {/* Main Navigation */}
       <nav className="flex-1 space-y-1">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">
           Main Menu
         </p>
         {mainNavItems.map((item) => {
-          const isActive = location.pathname === item.path;
+          const isActive = item.path === "/"
+            ? location.pathname === "/"
+            : location.pathname.startsWith(item.path);
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                isActive 
-                  ? "bg-primary text-primary-foreground shadow-soft" 
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-soft"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
@@ -79,15 +70,15 @@ const Sidebar = () => {
         {secondaryNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                isActive 
-                  ? "bg-muted text-foreground" 
+                isActive
+                  ? "bg-muted text-foreground ring-2 ring-primary shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
@@ -101,15 +92,15 @@ const Sidebar = () => {
       {/* Bottom Section */}
       <div className="space-y-1 pt-4 border-t border-border">
         <Link
-          to="/settings"
+          to="/contact"
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
         >
-          <Settings className="h-5 w-5" />
-          Settings
+          <Mail className="h-5 w-5" />
+          Contact
         </Link>
-        <Button 
-          variant="ghost" 
-          className="w-full justify-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 hover:text-destructive"
           onClick={handleSignOut}
         >
           <LogOut className="h-5 w-5" />

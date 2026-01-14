@@ -9,6 +9,7 @@ export interface StudentRank {
   name: string;
   overallLabGrade: number;
   overallCourseGrade: number;
+  overall: number;
   rank: number;
 }
 
@@ -24,7 +25,7 @@ export async function getStudentRank(
     const { data: students, error } = await supabase
       .from('enrolled_students')
       .select('roll_number, name')
-      .eq('section', section);
+      .eq('section', section) as { data: { roll_number: string; name: string }[] | null, error: any };
 
     if (error) throw error;
     if (!students || students.length === 0) return null;
@@ -39,13 +40,15 @@ export async function getStudentRank(
       students.map(async (student) => {
         try {
           const stats = await getStudentStats(student.roll_number, section);
-          // Only include students with actual grades (overallLabGrade > 0)
-          if (stats.overallLabGrade > 0) {
+          // Include all students who have at least attempted something (overall >= 0)
+          // We use >= 0 so even if they got 0, they are part of the class ranking
+          if (stats.overall >= 0) {
             return {
               rollNumber: student.roll_number,
               name: student.name,
               overallLabGrade: stats.overallLabGrade,
               overallCourseGrade: stats.overallCourseGrade,
+              overall: stats.overall,
             };
           }
           return null;
@@ -62,6 +65,7 @@ export async function getStudentRank(
       name: string;
       overallLabGrade: number;
       overallCourseGrade: number;
+      overall: number;
     }>;
 
     // If no students have grades yet, return null
@@ -69,8 +73,8 @@ export async function getStudentRank(
       return null;
     }
 
-    // Sort by overallLabGrade (descending)
-    validStats.sort((a, b) => b.overallLabGrade - a.overallLabGrade);
+    // Sort by overall grade (descending)
+    validStats.sort((a, b) => b.overall - a.overall);
 
     // Find rank (1-based) - only among students with grades
     const rank = validStats.findIndex(s => s.rollNumber === rollNumber) + 1;

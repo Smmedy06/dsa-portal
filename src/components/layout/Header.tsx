@@ -1,4 +1,4 @@
-import { Search, User, Settings, LogOut } from "lucide-react";
+import { Search, User, Mail, LogOut } from "lucide-react"; // Rebuild trigger
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,9 +17,10 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 const Header = () => {
   const { profile, signOut, user } = useAuth();
   const navigate = useNavigate();
-  
+
   // Get avatar URL from user metadata (Google OAuth provides this)
-  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || user?.user_metadata?.avatar || null;
+  // Google primarily uses 'picture', relying on 'avatar_url' frequently fails or returns 404
+  const avatarUrl = user?.user_metadata?.picture || user?.user_metadata?.avatar_url || user?.user_metadata?.avatar || null;
   const initials = profile?.name
     ? profile.name.split(" ").map(n => n[0]).join("").toUpperCase()
     : profile?.roll_number?.substring(0, 2).toUpperCase() || "U";
@@ -36,6 +37,17 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-40 w-full bg-background/80 backdrop-blur-xl border-b border-border/50">
       <div className="container flex h-16 items-center justify-between gap-4">
+        {/* Logo & Branding */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-soft">
+            <span className="text-lg font-bold text-primary-foreground">DS</span>
+          </div>
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">DSA Portal</h1>
+            <p className="text-xs text-muted-foreground hidden sm:block">PUCIT • Fall 2024</p>
+          </div>
+        </div>
+
         {/* Right Side */}
         <div className="flex items-center gap-2 ml-auto">
           {/* Notifications */}
@@ -50,11 +62,9 @@ const Header = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-xl bg-muted hover:bg-muted/80 p-0">
-                  <Avatar className="h-10 w-10">
-                    {avatarUrl && <AvatarImage src={avatarUrl} alt={profile?.name || 'User'} />}
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                      {initials}
-                    </AvatarFallback>
+                  <Avatar className="h-8 w-8 rounded-xl ring-2 ring-primary/20 bg-background">
+                    {avatarUrl && <AvatarImage src={avatarUrl} alt={profile?.name || 'User'} referrerPolicy="no-referrer" />}
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold">{initials}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
@@ -73,9 +83,9 @@ const Header = () => {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/settings" className="cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
+                  <Link to="/contact" className="cursor-pointer">
+                    <Mail className="mr-2 h-4 w-4" />
+                    Contact
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

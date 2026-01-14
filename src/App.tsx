@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect } from "react"; // Rebuild trigger
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +10,7 @@ import Index from "./pages/Index";
 import Grades from "./pages/Grades";
 import Materials from "./pages/Materials";
 import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
+import Contact from "./pages/Contact";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
@@ -49,7 +49,7 @@ const App = () => (
             {/* Auth */}
             <Route path="/login" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
-            
+
             {/* Student Routes - Protected */}
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
@@ -58,8 +58,8 @@ const App = () => (
             <Route path="/materials/assignments" element={<ProtectedRoute><Materials /></ProtectedRoute>} />
             <Route path="/materials/quizzes" element={<ProtectedRoute><Materials /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            
+            <Route path="/contact" element={<ProtectedRoute><Contact /></ProtectedRoute>} />
+
             {/* Admin Routes - Protected with Admin Requirement */}
             <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin/students" element={<ProtectedRoute requireAdmin><AdminStudents /></ProtectedRoute>} />
@@ -68,7 +68,7 @@ const App = () => (
             <Route path="/admin/quizzes" element={<ProtectedRoute requireAdmin><AdminQuizzes /></ProtectedRoute>} />
             <Route path="/admin/grades" element={<ProtectedRoute requireAdmin><AdminGrades /></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
-            
+
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>

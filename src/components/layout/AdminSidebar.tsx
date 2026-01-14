@@ -52,15 +52,15 @@ const AdminSidebar = () => {
         {mainNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                isActive 
-                  ? "bg-secondary text-secondary-foreground shadow-soft" 
+                isActive
+                  ? "bg-secondary text-secondary-foreground shadow-soft"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
@@ -78,15 +78,15 @@ const AdminSidebar = () => {
         {contentNavItems.map((item) => {
           const isActive = location.pathname === item.path;
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.path}
               to={item.path}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                isActive 
-                  ? "bg-muted text-foreground" 
+                isActive
+                  ? "bg-muted text-foreground ring-2 ring-primary shadow-sm"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
@@ -106,8 +106,8 @@ const AdminSidebar = () => {
           <Settings className="h-5 w-5" />
           Settings
         </Link>
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           className="w-full justify-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           onClick={handleSignOut}
         >

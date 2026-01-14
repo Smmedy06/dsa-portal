@@ -35,6 +35,40 @@ const Index = () => {
     }
   }, [isAdmin, profile, navigate]);
 
+  // Fetch data when profile loads (only once)
+  useEffect(() => {
+    if (profile?.roll_number && !isAdmin && !hasFetched) {
+      // Check cache first
+      const cacheKey = `dashboard-stats-${profile.roll_number}`;
+      const cached = sessionStorage.getItem(cacheKey);
+
+      if (cached) {
+        try {
+          const { stats, deadlines } = JSON.parse(cached);
+          setStats(stats);
+          setCategoryData([
+            { name: "Labs", score: stats.labs.score, total: stats.labs.total },
+            { name: "Assignments", score: stats.assignments.score, total: stats.assignments.total },
+            { name: "Quizzes", score: stats.quizzes.score, total: stats.quizzes.total },
+            { name: "Exams", score: stats.exams.score, total: stats.exams.total },
+          ]);
+          setUpcomingDeadlines(deadlines);
+          setLoading(false);
+          setHasFetched(true);
+        } catch (e) {
+          console.error(e);
+          fetchDashboardData();
+        }
+      } else {
+        fetchDashboardData();
+      }
+    } else if (profile === null && !isAdmin) {
+      // Only set loading to false if profile is explicitly null (not loading)
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.roll_number, profile?.section, isAdmin, hasFetched]);
+
   const fetchDashboardData = async () => {
     if (!profile?.roll_number) {
       setLoading(false);
@@ -42,7 +76,9 @@ const Index = () => {
     }
 
     try {
-      setLoading(true);
+      // Only show loader if we didn't load from cache
+      if (!stats) setLoading(true);
+
       const [statsData, deadlines] = await Promise.all([
         getStudentStats(profile.roll_number, profile.section as 'CS-F24-M' | 'CS-F24-A' | undefined),
         getUpcomingDeadlines(),
@@ -56,6 +92,12 @@ const Index = () => {
         { name: "Exams", score: statsData.exams.score, total: statsData.exams.total },
       ]);
       setUpcomingDeadlines(deadlines);
+      setHasFetched(true);
+
+      // Update cache
+      const cacheKey = `dashboard-stats-${profile.roll_number}`;
+      sessionStorage.setItem(cacheKey, JSON.stringify({ stats: statsData, deadlines }));
+
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
       // Set empty data on error
@@ -69,18 +111,6 @@ const Index = () => {
       setLoading(false);
     }
   };
-  
-  // Fetch data when profile loads (only once)
-  useEffect(() => {
-    if (profile?.roll_number && !isAdmin && !hasFetched) {
-      fetchDashboardData();
-      setHasFetched(true);
-    } else if (profile === null && !isAdmin) {
-      // Only set loading to false if profile is explicitly null (not loading)
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.roll_number, profile?.section, isAdmin, hasFetched]);
 
   // Use actual counts from stats
   const labsCompleted = stats?.labs.count || 0;
@@ -178,9 +208,9 @@ const Index = () => {
                 <div className="flex flex-wrap gap-3 mt-4">
                   {categoryData.filter(c => c.total > 0).map((cat, i) => (
                     <div key={cat.name} className="flex items-center gap-2">
-                      <div 
-                        className="h-3 w-3 rounded-full" 
-                        style={{ backgroundColor: `hsl(var(--chart-${i + 1}))` }} 
+                      <div
+                        className="h-3 w-3 rounded-full"
+                        style={{ backgroundColor: `hsl(var(--chart-${i + 1}))` }}
                       />
                       <span className="text-sm text-muted-foreground">{cat.name}</span>
                     </div>
@@ -196,15 +226,15 @@ const Index = () => {
           </div>
         </div>
 
-            {/* Upcoming Deadlines */}
-            {upcomingDeadlines.length > 0 && (
-              <div className="bg-card rounded-2xl border border-border p-6 animate-fade-in" style={{ animationDelay: "400ms" }}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-foreground">Upcoming Deadlines</h2>
-                </div>
-                <UpcomingDeadlines deadlines={upcomingDeadlines} />
-              </div>
-            )}
+        {/* Upcoming Deadlines */}
+        {upcomingDeadlines.length > 0 && (
+          <div className="bg-card rounded-2xl border border-border p-6 animate-fade-in" style={{ animationDelay: "400ms" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-foreground">Upcoming Deadlines</h2>
+            </div>
+            <UpcomingDeadlines deadlines={upcomingDeadlines} />
+          </div>
+        )}
       </div>
     </AppLayout>
   );

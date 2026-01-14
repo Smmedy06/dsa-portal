@@ -31,6 +31,7 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
       score: number;
       total: number;
       columnName: string;
+      isBonusOrPenalty?: boolean;
     }>;
     visible: boolean;
   }>;
@@ -60,6 +61,7 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
       score: number;
       total: number;
       columnName: string;
+      isBonusOrPenalty?: boolean;
     }>;
     visible: boolean;
   }>();
@@ -77,7 +79,7 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
 
     // Get tab config from grade sheet
     const tabConfig = gradeSheetConfig?.tabs 
-      ? (gradeSheetConfig.tabs as any[]).find((t: any) => t.name === tabName)
+      ? (gradeSheetConfig.tabs as any[]).find((t: any) => t.name.trim() === tabName.trim())
       : null;
 
     // Check if tab is visible (default to true if no config)
@@ -193,6 +195,21 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
       } else if (tabNameLower.includes('midterm') || tabNameLower.includes('final')) {
         exams.push(legacyItem);
       }
+    });
+
+    // Sort items numerically if possible
+    tab.items.sort((a, b) => {
+      // Extract numbers
+      const numA = parseInt(a.title.replace(/\D/g, '') || '0');
+      const numB = parseInt(b.title.replace(/\D/g, '') || '0');
+      
+      // If both have numbers, sort by ID/Number (Descending: Bigger/Newer first)
+      if (numA !== 0 && numB !== 0) {
+        return numB - numA;
+      }
+      
+      // Fallback to alphabetical
+      return a.title.localeCompare(b.title);
     });
   });
 

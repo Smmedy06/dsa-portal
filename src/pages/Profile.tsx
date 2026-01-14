@@ -31,8 +31,21 @@ const Profile = () => {
       setLoading(false);
       return;
     }
-    
+
     try {
+      // Check cache first
+      const cacheKey = `profile-stats-${profile.roll_number}`;
+      const cached = sessionStorage.getItem(cacheKey);
+
+      if (cached) {
+        try {
+          const { stats, rank } = JSON.parse(cached);
+          setOverallGrade(stats.overallLabGrade);
+          setRank(rank);
+          setLoading(false);
+        } catch (e) { console.error(e); }
+      }
+
       // Use section if available, otherwise try both sections
       const section = profile.section as 'CS-F24-M' | 'CS-F24-A' | undefined;
       const [stats, studentRank] = await Promise.all([
@@ -41,6 +54,9 @@ const Profile = () => {
       ]);
       setOverallGrade(stats.overallLabGrade); // Use overallLabGrade to match dashboard
       setRank(studentRank);
+
+      // Update cache
+      sessionStorage.setItem(cacheKey, JSON.stringify({ stats, rank: studentRank }));
     } catch (error) {
       console.error('Error fetching data:', error);
       setOverallGrade(0);
@@ -92,7 +108,7 @@ const Profile = () => {
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Avatar */}
             <Avatar className="h-24 w-24 rounded-2xl">
-              {avatarUrl && <AvatarImage src={avatarUrl} alt={profile.name || 'User'} />}
+              {avatarUrl && <AvatarImage src={avatarUrl} alt={profile.name || 'User'} referrerPolicy="no-referrer" />}
               <AvatarFallback className="rounded-2xl bg-primary text-3xl font-bold text-primary-foreground">
                 {initials}
               </AvatarFallback>
@@ -124,7 +140,7 @@ const Profile = () => {
                 <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
-              <GradeDonutChart percentage={overallGrade} size="md" label="Overall Grade" />
+              <GradeDonutChart percentage={overallGrade} size="md" label="Overall Lab Grade" />
             )}
           </div>
           <div className="bg-card rounded-2xl border border-border p-6 flex flex-col items-center justify-center">
@@ -156,7 +172,7 @@ const Profile = () => {
               <p className="font-medium text-foreground">{profile.name || 'Not set'}</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
               <Mail className="h-5 w-5 text-muted-foreground" />
@@ -166,7 +182,7 @@ const Profile = () => {
               <p className="font-medium text-foreground">{profile.email}</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
               <Hash className="h-5 w-5 text-muted-foreground" />
@@ -176,21 +192,31 @@ const Profile = () => {
               <p className="font-medium text-foreground font-mono">{profile.roll_number || 'N/A'}</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4 p-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
               <Calendar className="h-5 w-5 text-muted-foreground" />
             </div>
             <div className="flex-1">
-              <p className="text-sm text-muted-foreground">Current Semester</p>
+              <p className="text-sm text-muted-foreground">Session</p>
               <p className="font-medium text-foreground">Fall 2024</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+              <Award className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">Section</p>
+              <p className="font-medium text-foreground">{profile.section || 'N/A'}</p>
             </div>
           </div>
         </div>
 
         {/* Sign Out */}
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="w-full rounded-xl gap-2 text-destructive hover:bg-destructive hover:text-destructive-foreground"
           onClick={handleSignOut}
         >
