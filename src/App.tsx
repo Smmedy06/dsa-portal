@@ -1,14 +1,18 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Grades from "./pages/Grades";
 import Materials from "./pages/Materials";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
+import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
 // Admin Pages
@@ -22,40 +26,55 @@ import AdminSettings from "./pages/admin/AdminSettings";
 
 const queryClient = new QueryClient();
 
+// Component to scroll to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          {/* Auth */}
-          <Route path="/login" element={<Login />} />
-          
-          {/* Student Routes */}
-          <Route path="/" element={<Index />} />
-          <Route path="/grades" element={<Grades />} />
-          <Route path="/materials" element={<Materials />} />
-          <Route path="/materials/labs" element={<Materials />} />
-          <Route path="/materials/assignments" element={<Materials />} />
-          <Route path="/materials/quizzes" element={<Materials />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/settings" element={<Settings />} />
-          
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/students" element={<AdminStudents />} />
-          <Route path="/admin/labs" element={<AdminLabs />} />
-          <Route path="/admin/assignments" element={<AdminAssignments />} />
-          <Route path="/admin/quizzes" element={<AdminQuizzes />} />
-          <Route path="/admin/grades" element={<AdminGrades />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
-          
-          {/* Catch-all */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <ScrollToTop />
+          <Routes>
+            {/* Auth */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            
+            {/* Student Routes - Protected */}
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
+            <Route path="/materials" element={<ProtectedRoute><Materials /></ProtectedRoute>} />
+            <Route path="/materials/labs" element={<ProtectedRoute><Materials /></ProtectedRoute>} />
+            <Route path="/materials/assignments" element={<ProtectedRoute><Materials /></ProtectedRoute>} />
+            <Route path="/materials/quizzes" element={<ProtectedRoute><Materials /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            
+            {/* Admin Routes - Protected with Admin Requirement */}
+            <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/students" element={<ProtectedRoute requireAdmin><AdminStudents /></ProtectedRoute>} />
+            <Route path="/admin/labs" element={<ProtectedRoute requireAdmin><AdminLabs /></ProtectedRoute>} />
+            <Route path="/admin/assignments" element={<ProtectedRoute requireAdmin><AdminAssignments /></ProtectedRoute>} />
+            <Route path="/admin/quizzes" element={<ProtectedRoute requireAdmin><AdminQuizzes /></ProtectedRoute>} />
+            <Route path="/admin/grades" element={<ProtectedRoute requireAdmin><AdminGrades /></ProtectedRoute>} />
+            <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
+            
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

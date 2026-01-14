@@ -1,10 +1,11 @@
-import { Bell, Calendar, Shield, Users, LogOut } from "lucide-react";
+import { Bell, Calendar, Shield, Users, LogOut, GraduationCap } from "lucide-react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { DEFAULT_GRADE_SCALE } from "@/lib/grading";
 
 const AdminSettings = () => {
   return (
@@ -128,10 +129,54 @@ const AdminSettings = () => {
           </div>
         </div>
 
-        {/* Manage TAs */}
+        {/* Grading System */}
         <div 
           className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
           style={{ animationDelay: "400ms" }}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
+              <GraduationCap className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground">Grading System</h2>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground mb-4">
+              Current grading scale used to calculate letter grades from percentages.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left p-2 font-semibold text-foreground">Min %</th>
+                    <th className="text-left p-2 font-semibold text-foreground">Max %</th>
+                    <th className="text-left p-2 font-semibold text-foreground">Letter</th>
+                    <th className="text-left p-2 font-semibold text-foreground">GPA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DEFAULT_GRADE_SCALE.map((grade, index) => (
+                    <tr key={index} className="border-b border-border/50">
+                      <td className="p-2 text-muted-foreground">{grade.min}</td>
+                      <td className="p-2 text-muted-foreground">{grade.max}</td>
+                      <td className="p-2 font-medium text-foreground">{grade.letter}</td>
+                      <td className="p-2 text-muted-foreground">{grade.gpa.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Note: Students with 0% (no grades yet) will not be assigned an F grade.
+            </p>
+          </div>
+        </div>
+
+        {/* Manage TAs */}
+        <div 
+          className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
+          style={{ animationDelay: "500ms" }}
         >
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
@@ -158,7 +203,7 @@ const AdminSettings = () => {
         {/* Danger Zone */}
         <div 
           className="bg-card rounded-2xl border border-destructive/30 p-6 animate-fade-in"
-          style={{ animationDelay: "500ms" }}
+          style={{ animationDelay: "600ms" }}
         >
           <h2 className="text-lg font-semibold text-destructive mb-4">Danger Zone</h2>
           <div className="space-y-3">

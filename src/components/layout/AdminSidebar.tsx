@@ -1,8 +1,9 @@
 import { Home, Users, BookOpen, FileText, HelpCircle, Settings, LogOut, BarChart3 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
 
 const mainNavItems = [
   { icon: Home, label: "Dashboard", path: "/admin" },
@@ -18,9 +19,20 @@ const contentNavItems = [
 
 const AdminSidebar = () => {
   const location = useLocation();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   return (
-    <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-card border-r border-border p-4">
+    <aside className="hidden md:flex flex-col w-64 h-screen fixed top-0 left-0 bg-card border-r border-border p-4">
       {/* Logo */}
       <div className="flex items-center gap-3 px-2 mb-8">
         <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary shadow-soft">
@@ -34,7 +46,7 @@ const AdminSidebar = () => {
 
       {/* Main Navigation */}
       <nav className="flex-1 space-y-1">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-3 mt-2">
           Management
         </p>
         {mainNavItems.map((item) => {
@@ -60,7 +72,7 @@ const AdminSidebar = () => {
 
         <Separator className="my-4" />
 
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-3 mt-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-3 mt-4">
           Content
         </p>
         {contentNavItems.map((item) => {
@@ -94,16 +106,10 @@ const AdminSidebar = () => {
           <Settings className="h-5 w-5" />
           Settings
         </Link>
-        <Link
-          to="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
-        >
-          <Home className="h-5 w-5" />
-          Student View
-        </Link>
         <Button 
           variant="ghost" 
           className="w-full justify-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          onClick={handleSignOut}
         >
           <LogOut className="h-5 w-5" />
           Sign Out

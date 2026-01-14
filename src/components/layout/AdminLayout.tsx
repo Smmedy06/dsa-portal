@@ -13,7 +13,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       <AdminHeader />
       <div className="flex">
         <AdminSidebar />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 md:pb-8">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 md:pb-8 md:ml-64">
           {children}
         </main>
       </div>

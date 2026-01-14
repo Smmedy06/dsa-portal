@@ -1,28 +1,90 @@
+import { useEffect, useState } from "react";
 import { Users, BookOpen, FileText, HelpCircle, TrendingUp, Calendar } from "lucide-react";
+import { Link } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import StatCard from "@/components/dashboard/StatCard";
-
-const adminStats = [
-  { title: "Total Students", value: "120", subtitle: "Enrolled this semester", icon: Users },
-  { title: "Labs", value: "8", subtitle: "2 remaining", icon: BookOpen },
-  { title: "Assignments", value: "4", subtitle: "1 pending submission", icon: FileText },
-  { title: "Quizzes", value: "6", subtitle: "1 upcoming", icon: HelpCircle },
-];
-
-const recentUpdates = [
-  { id: 1, action: "Uploaded", item: "Lab 8: Binary Search Trees", time: "2 hours ago" },
-  { id: 2, action: "Added solution for", item: "Assignment 2", time: "1 day ago" },
-  { id: 3, action: "Updated grades for", item: "Quiz 5", time: "2 days ago" },
-  { id: 4, action: "Created", item: "Assignment 4: Graph Algorithms", time: "3 days ago" },
-];
-
-const upcomingSchedule = [
-  { id: 1, title: "Lab 9: Hash Tables", type: "Lab", date: "Jan 15, 2026" },
-  { id: 2, title: "Quiz 6: Trees & Graphs", type: "Quiz", date: "Jan 18, 2026" },
-  { id: 3, title: "Assignment 4 Deadline", type: "Deadline", date: "Jan 12, 2026" },
-];
+import { getAllStudents } from "@/lib/students";
+import { getAllLabs, getAllAssignments, getAllQuizzes } from "@/lib/content";
 
 const AdminDashboard = () => {
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    labs: 0,
+    assignments: 0,
+    quizzes: 0,
+  });
+  const [loading, setLoading] = useState(false); // Start false
+
+  useEffect(() => {
+    let mounted = true;
+    
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const [students, labs, assignments, quizzes] = await Promise.all([
+          getAllStudents(),
+          getAllLabs(),
+          getAllAssignments(),
+          getAllQuizzes(),
+        ]);
+
+        if (!mounted) return;
+
+        setStats({
+          totalStudents: students.length,
+          labs: labs.length,
+          assignments: assignments.length,
+          quizzes: quizzes.length,
+        });
+      } catch (error: any) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchStats();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const adminStats = [
+    { 
+      title: "Total Students", 
+      value: loading ? "..." : stats.totalStudents.toString(), 
+      subtitle: undefined, 
+      icon: Users 
+    },
+    { 
+      title: "Labs", 
+      value: loading ? "..." : stats.labs.toString(), 
+      subtitle: undefined, 
+      icon: BookOpen 
+    },
+    { 
+      title: "Assignments", 
+      value: loading ? "..." : stats.assignments.toString(), 
+      subtitle: undefined, 
+      icon: FileText 
+    },
+    { 
+      title: "Quizzes", 
+      value: loading ? "..." : stats.quizzes.toString(), 
+      subtitle: undefined, 
+      icon: HelpCircle 
+    },
+  ];
+
+  const upcomingSchedule = [
+    { id: 1, title: "Lab 9: Hash Tables", type: "Lab", date: "Jan 15, 2026" },
+    { id: 2, title: "Quiz 6: Trees & Graphs", type: "Quiz", date: "Jan 18, 2026" },
+    { id: 3, title: "Assignment 4 Deadline", type: "Deadline", date: "Jan 12, 2026" },
+  ];
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -64,18 +126,10 @@ const AdminDashboard = () => {
             </div>
 
             <div className="space-y-4">
-              {recentUpdates.map((update) => (
-                <div key={update.id} className="flex items-start gap-3">
-                  <div className="h-2 w-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground">
-                      <span className="text-muted-foreground">{update.action}</span>{" "}
-                      <span className="font-medium">{update.item}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">{update.time}</p>
-                  </div>
-                </div>
-              ))}
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Recent activity will appear here</p>
+                <p className="text-sm">Activity tracking coming soon</p>
+              </div>
             </div>
           </div>
 
@@ -115,34 +169,34 @@ const AdminDashboard = () => {
         >
           <h2 className="text-lg font-semibold text-foreground mb-4">Quick Actions</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <a 
-              href="/admin/labs" 
+            <Link 
+              to="/admin/labs" 
               className="flex flex-col items-center gap-2 p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
             >
               <BookOpen className="h-6 w-6 text-primary" />
               <span className="text-sm font-medium text-foreground">Add Lab</span>
-            </a>
-            <a 
-              href="/admin/assignments" 
+            </Link>
+            <Link 
+              to="/admin/assignments" 
               className="flex flex-col items-center gap-2 p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
             >
               <FileText className="h-6 w-6 text-primary" />
               <span className="text-sm font-medium text-foreground">Add Assignment</span>
-            </a>
-            <a 
-              href="/admin/quizzes" 
+            </Link>
+            <Link 
+              to="/admin/quizzes" 
               className="flex flex-col items-center gap-2 p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
             >
               <HelpCircle className="h-6 w-6 text-primary" />
               <span className="text-sm font-medium text-foreground">Add Quiz</span>
-            </a>
-            <a 
-              href="/admin/students" 
+            </Link>
+            <Link 
+              to="/admin/students" 
               className="flex flex-col items-center gap-2 p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
             >
               <Users className="h-6 w-6 text-primary" />
               <span className="text-sm font-medium text-foreground">Manage Students</span>
-            </a>
+            </Link>
           </div>
         </div>
       </div>

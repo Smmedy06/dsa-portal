@@ -1,0 +1,379 @@
+// Student data fetching utilities
+
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import {
+  getAllLabs,
+  getAllAssignments,
+  getAllQuizzes,
+  isSolutionVisible,
+  type Lab,
+  type Assignment,
+  type Quiz,
+} from './content';
+import {
+  getStudentGradeData,
+  getGradeSheetConfig,
+  type GradeData,
+} from './googleSheets';
+import { parseMaxMarks, getCleanColumnName } from './grading';
+
+/**
+ * Get student's grade data from all tabs, filtered by visible columns
+ * Returns data organized by tabs (dynamic, not hardcoded categories)
+ */
+export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' | 'CS-F24-A'): Promise<{
+  tabs: Array<{
+    name: string;
+    items: Array<{
+      id: string;
+      title: string;
+      score: number;
+      total: number;
+      columnName: string;
+    }>;
+    visible: boolean;
+  }>;
+  // Legacy format for backward compatibility
+  labs: any[];
+  assignments: any[];
+  quizzes: any[];
+  exams: any[];
+}> {
+  const gradeData = await getStudentGradeData(rollNumber);
+  
+  // Get grade sheet config to know which columns are visible
+  // Try to get section from user profile or use first available
+  let gradeSheetConfig = null;
+  if (section) {
+    gradeSheetConfig = await getGradeSheetConfig(section);
+  } else {
+    // Try both sections
+    gradeSheetConfig = await getGradeSheetConfig('CS-F24-M') || await getGradeSheetConfig('CS-F24-A');
+  }
+
+  const tabsMap = new Map<string, {
+    name: string;
+    items: Array<{
+      id: string;
+      title: string;
+      score: number;
+      total: number;
+      columnName: string;
+    }>;
+    visible: boolean;
+  }>();
+
+  // Legacy arrays for backward compatibility
+  const labs: any[] = [];
+  const assignments: any[] = [];
+  const quizzes: any[] = [];
+  const exams: any[] = [];
+
+  gradeData.forEach((data) => {
+    const tabData = data.data as any;
+    const tabName = data.tab_name;
+    const tabNameLower = tabName.toLowerCase();
+
+    // Get tab config from grade sheet
+    const tabConfig = gradeSheetConfig?.tabs 
+      ? (gradeSheetConfig.tabs as any[]).find((t: any) => t.name === tabName)
+      : null;
+
+    // Check if tab is visible (default to true if no config)
+    // Explicitly check: if visible is undefined or true, show it; only hide if explicitly false
+    const tabVisible = tabConfig === null || tabConfig.visible === undefined || tabConfig.visible === true;
+
+    // If tab is hidden, completely skip it - don't add to map at all
+    if (!tabVisible) {
+      return; // Don't process this tab at all if it's hidden
+    }
+
+    // Initialize tab if not exists (only for visible tabs)
+    if (!tabsMap.has(tabName)) {
+      tabsMap.set(tabName, {
+        name: tabName,
+        items: [],
+        visible: true, // Only visible tabs are in the map
+      });
+    }
+
+    const tab = tabsMap.get(tabName)!;
+
+    // Get visible columns for this tab (default to all if no config)
+    const visibleColumns = tabConfig?.visibleColumns || Object.keys(tabData);
+
+    // Process each column in the tab data
+    Object.keys(tabData).forEach((columnName) => {
+      // Skip if column is not visible
+      if (!visibleColumns.includes(columnName)) {
+        return;
+      }
+
+      // Skip roll number, name columns
+      if (
+        columnName.toLowerCase().includes('roll') ||
+        columnName.toLowerCase() === 'student name' ||
+        columnName.toLowerCase() === 'name'
+      ) {
+        return;
+      }
+
+      // Skip summary/calculated columns (PCT %, TOTAL, but allow LAB PENALTY and COURSE PENALTY)
+      const columnLower = columnName.toLowerCase().trim();
+      if (
+        columnLower.includes('pct') ||
+        (columnLower.includes('total') && !columnLower.includes('penalty')) ||
+        (columnLower.includes('percentage') && !columnLower.includes('penalty')) ||
+        columnLower === '%'
+      ) {
+        return;
+      }
+
+      const value = tabData[columnName];
+      const score = parseFloat(value);
+      
+      // Skip if not a valid number or empty
+      if (isNaN(score) || value === '' || value === null || value === undefined) {
+        return;
+      }
+
+      // Parse max marks from column name (e.g., "Lab 01 (30)" -> 30)
+      const maxMarks = parseMaxMarks(columnName);
+      
+      // Check if this is a penalty or bonus column (LAB PENALTY, COURSE PENALTY, or bonus like +1, +2)
+      // Also check if tab name is "Extra" - all columns in Extra tab should be treated as bonus/penalty
+      const tabIsExtra = tabNameLower.includes('extra') || tabNameLower.includes('bonus');
+      const isPenaltyOrBonus = columnLower.includes('penalty') || 
+                                columnLower.includes('bonus') ||
+                                /^\+?\d+$/.test(columnName.trim()) || 
+                                columnName.trim().startsWith('+') ||
+                                tabIsExtra; // If tab is "Extra", treat all columns as bonus/penalty
+      
+      // If no max marks and not a penalty/bonus, check if it matches grade patterns
+      if (!maxMarks && !isPenaltyOrBonus) {
+        const hasGradePattern = /^(lab|assignment|quiz|exam|midterm|final)\s*\d+/i.test(columnName);
+        if (!hasGradePattern) {
+          return; // Skip columns that don't match grade item patterns
+        }
+      }
+      
+      // For penalty/bonalty columns (including Extra tab), treat as single value (no division)
+      // For regular columns, use parsed marks or default to 20
+      const finalMaxMarks = isPenaltyOrBonus && !maxMarks ? score : (maxMarks || 20);
+      const cleanName = getCleanColumnName(columnName);
+
+      // Add to tab items
+      // For penalty/bonus columns, show as single value (score = total, so percentage is 100%)
+      tab.items.push({
+        id: `${tabName}-${columnName}`,
+        title: cleanName,
+        score: score,
+        total: isPenaltyOrBonus && !maxMarks ? score : finalMaxMarks, // For bonuses/penalties, total = score
+        columnName: columnName,
+        isBonusOrPenalty: isPenaltyOrBonus || tabIsExtra, // Flag to indicate this is a bonus/penalty (including Extra tab)
+      });
+
+      // Also add to legacy arrays for backward compatibility
+      const legacyItem = {
+        id: `${tabName}-${columnName}`,
+        title: cleanName,
+        score: score,
+        total: isPenaltyOrBonus && !maxMarks ? score : finalMaxMarks,
+        date: tabData.date || null,
+        isBonusOrPenalty: isPenaltyOrBonus || tabIsExtra,
+      };
+      
+      if (tabNameLower.includes('lab')) {
+        labs.push(legacyItem);
+      } else if (tabNameLower.includes('assignment')) {
+        assignments.push(legacyItem);
+      } else if (tabNameLower.includes('quiz')) {
+        quizzes.push(legacyItem);
+      } else if (tabNameLower.includes('midterm') || tabNameLower.includes('final')) {
+        exams.push(legacyItem);
+      }
+    });
+  });
+
+  return {
+    tabs: Array.from(tabsMap.values()),
+    labs,
+    assignments,
+    quizzes,
+    exams,
+  };
+}
+
+/**
+ * Get student dashboard statistics
+ * Labs are separate from course (assignments, quizzes, exams, etc.)
+ */
+export async function getStudentStats(rollNumber: string, section?: 'CS-F24-M' | 'CS-F24-A'): Promise<{
+  overallLabGrade: number; // Lab percentage
+  overallCourseGrade: number; // Course percentage (assignments, quizzes, exams, etc.)
+  labs: { score: number; total: number; count: number };
+  assignments: { score: number; total: number; count: number };
+  quizzes: { score: number; total: number; count: number };
+  exams: { score: number; total: number; count: number };
+  overall: number; // Legacy - combined (for backward compatibility)
+}> {
+  const grades = await getStudentGrades(rollNumber, section);
+  
+  // Filter out bonus/penalty items from counts
+  const labsItems = grades.labs.filter(l => !l.isBonusOrPenalty);
+  const assignmentsItems = grades.assignments.filter(a => !a.isBonusOrPenalty);
+  const quizzesItems = grades.quizzes.filter(q => !q.isBonusOrPenalty);
+  const examsItems = grades.exams.filter(e => !e.isBonusOrPenalty);
+  
+  const labsTotal = labsItems.reduce((acc, l) => acc + (l.score || 0), 0);
+  const labsMax = labsItems.reduce((acc, l) => acc + (l.total || 0), 0);
+  const labsCount = labsItems.length;
+  
+  const assignmentsTotal = assignmentsItems.reduce((acc, a) => acc + (a.score || 0), 0);
+  const assignmentsMax = assignmentsItems.reduce((acc, a) => acc + (a.total || 0), 0);
+  const assignmentsCount = assignmentsItems.length;
+  
+  const quizzesTotal = quizzesItems.reduce((acc, q) => acc + (q.score || 0), 0);
+  const quizzesMax = quizzesItems.reduce((acc, q) => acc + (q.total || 0), 0);
+  const quizzesCount = quizzesItems.length;
+  
+  const examsTotal = examsItems.reduce((acc, e) => acc + (e.score || 0), 0);
+  const examsMax = examsItems.reduce((acc, e) => acc + (e.total || 0), 0);
+  const examsCount = examsItems.length;
+
+  // Lab grade (separate)
+  const overallLabGrade = labsMax > 0 ? Math.round((labsTotal / labsMax) * 100) : 0;
+  
+  // Course grade (assignments + quizzes + exams + extra sessionals, etc.)
+  const courseScore = assignmentsTotal + quizzesTotal + examsTotal;
+  const courseMax = assignmentsMax + quizzesMax + examsMax;
+  const overallCourseGrade = courseMax > 0 ? Math.round((courseScore / courseMax) * 100) : 0;
+
+  // Legacy overall (combined) - for backward compatibility
+  const totalScore = labsTotal + courseScore;
+  const totalMax = labsMax + courseMax;
+  const overall = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+
+  return {
+    overallLabGrade,
+    overallCourseGrade,
+    labs: { score: labsTotal, total: labsMax, count: labsCount },
+    assignments: { score: assignmentsTotal, total: assignmentsMax, count: assignmentsCount },
+    quizzes: { score: quizzesTotal, total: quizzesMax, count: quizzesCount },
+    exams: { score: examsTotal, total: examsMax, count: examsCount },
+    overall, // Legacy
+  };
+}
+
+/**
+ * Get student's recent activity
+ */
+export async function getStudentActivity(rollNumber: string): Promise<any[]> {
+  const [labs, assignments, quizzes] = await Promise.all([
+    getAllLabs(),
+    getAllAssignments(),
+    getAllQuizzes(),
+  ]);
+
+  const activities: any[] = [];
+
+  // Add labs
+  labs.forEach((lab) => {
+    const hasSolution = lab.lab_files?.some(f => f.file_type === 'solution') && isSolutionVisible(lab);
+    activities.push({
+      id: `lab-${lab.id}`,
+      type: 'lab' as const,
+      title: `Lab ${lab.lab_number}: ${lab.title}`,
+      status: hasSolution ? 'completed' as const : 'in_progress' as const,
+      date: lab.taken_date || lab.created_at,
+    });
+  });
+
+  // Add assignments
+  assignments.forEach((assignment) => {
+    const deadline = assignment.submission_deadline ? new Date(assignment.submission_deadline) : null;
+    const now = new Date();
+    let status: 'completed' | 'in_progress' | 'missing' = 'in_progress';
+    
+    if (deadline && now > deadline) {
+      status = 'missing';
+    }
+
+    activities.push({
+      id: `assignment-${assignment.id}`,
+      type: 'assignment' as const,
+      title: `Assignment ${assignment.assignment_number}: ${assignment.title}`,
+      status,
+      date: assignment.submission_deadline || assignment.created_at,
+    });
+  });
+
+  // Add quizzes
+  quizzes.forEach((quiz) => {
+    activities.push({
+      id: `quiz-${quiz.id}`,
+      type: 'quiz' as const,
+      title: `Quiz ${quiz.quiz_number}: ${quiz.title}`,
+      status: quiz.status === 'completed' ? 'completed' as const : 'upcoming' as const,
+      date: quiz.taken_date || quiz.scheduled_date || quiz.created_at,
+    });
+  });
+
+  // Sort by date (most recent first)
+  return activities.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    return dateB - dateA;
+  }).slice(0, 5);
+}
+
+/**
+ * Get upcoming deadlines
+ */
+export async function getUpcomingDeadlines(): Promise<any[]> {
+  const [assignments, labs] = await Promise.all([
+    getAllAssignments(),
+    getAllLabs(),
+  ]);
+
+  const deadlines: any[] = [];
+  const now = new Date();
+
+  // Add assignment deadlines
+  assignments
+    .filter(a => a.submission_deadline && a.status === 'active')
+    .forEach((assignment) => {
+      const deadline = new Date(assignment.submission_deadline!);
+      if (deadline > now) {
+        const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        deadlines.push({
+          id: `assignment-${assignment.id}`,
+          title: `Assignment ${assignment.assignment_number}: ${assignment.title}`,
+          type: 'assignment' as const,
+          dueDate: deadline.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          daysLeft,
+        });
+      }
+    });
+
+  // Add lab deadlines
+  labs
+    .filter(l => l.deadline)
+    .forEach((lab) => {
+      const deadline = new Date(lab.deadline!);
+      if (deadline > now) {
+        const daysLeft = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        deadlines.push({
+          id: `lab-${lab.id}`,
+          title: `Lab ${lab.lab_number}: ${lab.title}`,
+          type: 'lab' as const,
+          dueDate: deadline.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+          daysLeft,
+        });
+      }
+    });
+
+  // Sort by days left
+  return deadlines.sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 5);
+}

@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { Home, BarChart3, FolderOpen, Settings, LogOut, BookOpen, FileText, HelpCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
 
 const mainNavItems = [
   { icon: Home, label: "Dashboard", path: "/" },
@@ -18,6 +20,17 @@ const secondaryNavItems = [
 
 const Sidebar = () => {
   const location = useLocation();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   return (
     <aside className="hidden md:flex flex-col w-64 h-screen sticky top-0 bg-card border-r border-border p-4">
@@ -60,7 +73,7 @@ const Sidebar = () => {
 
         <Separator className="my-4" />
 
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-3 mt-2">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-3 mb-3 mt-4">
           Quick Access
         </p>
         {secondaryNavItems.map((item) => {
@@ -97,6 +110,7 @@ const Sidebar = () => {
         <Button 
           variant="ghost" 
           className="w-full justify-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          onClick={handleSignOut}
         >
           <LogOut className="h-5 w-5" />
           Sign Out

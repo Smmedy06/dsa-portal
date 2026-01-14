@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { Bell, Moon, Sun, Shield, HelpCircle, LogOut } from "lucide-react";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/contexts/AuthContext";
 
 const settingsSections = [
   {
@@ -25,6 +27,18 @@ const settingsSections = [
 ];
 
 const Settings = () => {
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 max-w-2xl">
@@ -98,6 +112,7 @@ const Settings = () => {
           <Button 
             variant="outline" 
             className="w-full rounded-xl border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={handleSignOut}
           >
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out

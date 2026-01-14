@@ -1,19 +1,55 @@
-import { useState } from "react";
-import { Mail, Lock, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Mail, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { isValidPucitEmail } from "@/lib/auth";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { signInWithGoogle, user } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    // Auth logic will be implemented later
-    setTimeout(() => setIsLoading(false), 1500);
+  // Check for error in URL params
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam) {
+      const errorMessages: Record<string, string> = {
+        'session_error': 'Session error. Please try again.',
+        'no_email': 'No email found. Please try again.',
+        'access_denied': 'Access denied.',
+        'callback_error': 'Authentication error. Please try again.',
+      };
+      setError(errorMessages[errorParam] || decodeURIComponent(errorParam));
+    }
+  }, [searchParams]);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      navigate('/');
+    }
+  }, [user, navigate]);
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      await signInWithGoogle();
+      // User will be redirected to Google, then to /auth/callback
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.message || 'Failed to sign in with Google. Please try again.');
+      setIsLoading(false);
+    }
   };
+
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -38,9 +74,16 @@ const Login = () => {
             <p className="text-sm text-muted-foreground">Sign in with your PUCIT email</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          {error && (
+            <Alert variant="destructive" className="mb-4 rounded-xl">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="email">Email Address (for reference)</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -48,20 +91,29 @@ const Login = () => {
                   type="email"
                   placeholder="bcsf23m001@pucit.edu.pk"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setError(null);
+                  }}
                   className="pl-10 rounded-xl"
-                  required
+                  disabled={isLoading}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Use your official @pucit.edu.pk email
+                Use your official @pucit.edu.pk email. You'll sign in with Google.
               </p>
+              {email && !isValidPucitEmail(email) && (
+                <p className="text-xs text-destructive">
+                  Invalid PUCIT email format. Must be: rollnumber@pucit.edu.pk
+                </p>
+              )}
             </div>
 
             <Button 
-              type="submit" 
+              type="button"
+              onClick={handleGoogleLogin}
               className="w-full rounded-xl gap-2 bg-primary hover:bg-primary/90 h-12"
-              disabled={isLoading}
+              disabled={isLoading || (email && !isValidPucitEmail(email))}
             >
               {isLoading ? (
                 <div className="h-5 w-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
@@ -72,25 +124,7 @@ const Login = () => {
                 </>
               )}
             </Button>
-          </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border"></div>
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">or</span>
-            </div>
           </div>
-
-          <Button 
-            variant="outline" 
-            className="w-full rounded-xl gap-2 h-12"
-            onClick={() => window.location.href = "/admin"}
-          >
-            <Lock className="h-4 w-4" />
-            TA / Admin Login
-          </Button>
         </div>
 
         {/* Footer */}

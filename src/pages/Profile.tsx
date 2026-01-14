@@ -1,19 +1,83 @@
+import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { User, Mail, Hash, Calendar, Award, LogOut } from "lucide-react";
 import GradeDonutChart from "@/components/dashboard/GradeDonutChart";
+import { useAuth } from "@/contexts/AuthContext";
+import { getStudentStats } from "@/lib/studentData";
+import { useEffect, useState } from "react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { getStudentRank } from "@/lib/ranking";
 
 const Profile = () => {
-  const studentData = {
-    name: "Ahmed Hassan",
-    email: "bcsf23m023@pucit.edu.pk",
-    rollNumber: "BCSF23M023",
-    semester: "Fall 2024",
-    section: "A",
-    overallGrade: 82,
-    rank: 12,
-    totalStudents: 120,
+  const { profile, signOut, user } = useAuth();
+  const navigate = useNavigate();
+  const [overallGrade, setOverallGrade] = useState(0);
+  const [rank, setRank] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (profile?.roll_number) {
+      // If section is missing, try to fetch anyway (will use default section)
+      fetchData();
+    } else if (profile === null) {
+      // Only set loading to false if profile is explicitly null (not loading)
+      setLoading(false);
+    }
+  }, [profile?.roll_number, profile?.section]);
+
+  const fetchData = async () => {
+    if (!profile?.roll_number) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      // Use section if available, otherwise try both sections
+      const section = profile.section as 'CS-F24-M' | 'CS-F24-A' | undefined;
+      const [stats, studentRank] = await Promise.all([
+        getStudentStats(profile.roll_number, section),
+        section ? getStudentRank(profile.roll_number, section) : Promise.resolve(null),
+      ]);
+      setOverallGrade(stats.overallLabGrade); // Use overallLabGrade to match dashboard
+      setRank(studentRank);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setOverallGrade(0);
+      setRank(null);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/login');
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  if (!profile) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading profile...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const initials = profile.name
+    ? profile.name.split(" ").map(n => n[0]).join("").toUpperCase()
+    : profile.roll_number?.substring(0, 2).toUpperCase() || "U";
+
+  // Get avatar URL from user metadata (Google OAuth provides this)
+  const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || user?.user_metadata?.avatar || null;
 
   return (
     <AppLayout>
@@ -27,20 +91,25 @@ const Profile = () => {
         <div className="bg-card rounded-2xl border border-border p-6 animate-fade-in" style={{ animationDelay: "100ms" }}>
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {/* Avatar */}
-            <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-primary text-3xl font-bold text-primary-foreground">
-              {studentData.name.split(" ").map(n => n[0]).join("")}
-            </div>
+            <Avatar className="h-24 w-24 rounded-2xl">
+              {avatarUrl && <AvatarImage src={avatarUrl} alt={profile.name || 'User'} />}
+              <AvatarFallback className="rounded-2xl bg-primary text-3xl font-bold text-primary-foreground">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
 
             {/* Info */}
             <div className="flex-1 text-center sm:text-left">
-              <h2 className="text-2xl font-bold text-foreground">{studentData.name}</h2>
-              <p className="text-muted-foreground font-mono">{studentData.rollNumber}</p>
+              <h2 className="text-2xl font-bold text-foreground">{profile.name || 'Student'}</h2>
+              <p className="text-muted-foreground font-mono">{profile.roll_number || 'N/A'}</p>
               <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
-                <span className="px-3 py-1 rounded-full bg-primary/20 text-foreground text-sm font-medium">
-                  Section {studentData.section}
-                </span>
+                {profile.section && (
+                  <span className="px-3 py-1 rounded-full bg-primary/20 text-foreground text-sm font-medium">
+                    Section {profile.section}
+                  </span>
+                )}
                 <span className="px-3 py-1 rounded-full bg-secondary/20 text-secondary text-sm font-medium">
-                  {studentData.semester}
+                  Fall 2024
                 </span>
               </div>
             </div>
@@ -50,12 +119,29 @@ const Profile = () => {
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4 animate-fade-in" style={{ animationDelay: "200ms" }}>
           <div className="bg-card rounded-2xl border border-border p-6 text-center">
-            <GradeDonutChart percentage={studentData.overallGrade} size="md" label="Overall Grade" />
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <GradeDonutChart percentage={overallGrade} size="md" label="Overall Grade" />
+            )}
           </div>
           <div className="bg-card rounded-2xl border border-border p-6 flex flex-col items-center justify-center">
             <Award className="h-8 w-8 text-secondary mb-2" />
-            <p className="text-3xl font-bold text-foreground">#{studentData.rank}</p>
-            <p className="text-sm text-muted-foreground">of {studentData.totalStudents} students</p>
+            {loading ? (
+              <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            ) : rank ? (
+              <>
+                <p className="text-3xl font-bold text-foreground">#{rank}</p>
+                <p className="text-sm text-muted-foreground">Rank in {profile.section}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-bold text-foreground">-</p>
+                <p className="text-sm text-muted-foreground">Rank not available</p>
+              </>
+            )}
           </div>
         </div>
 
@@ -67,7 +153,7 @@ const Profile = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Full Name</p>
-              <p className="font-medium text-foreground">{studentData.name}</p>
+              <p className="font-medium text-foreground">{profile.name || 'Not set'}</p>
             </div>
           </div>
           
@@ -77,7 +163,7 @@ const Profile = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Email</p>
-              <p className="font-medium text-foreground">{studentData.email}</p>
+              <p className="font-medium text-foreground">{profile.email}</p>
             </div>
           </div>
           
@@ -87,7 +173,7 @@ const Profile = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Roll Number</p>
-              <p className="font-medium text-foreground font-mono">{studentData.rollNumber}</p>
+              <p className="font-medium text-foreground font-mono">{profile.roll_number || 'N/A'}</p>
             </div>
           </div>
           
@@ -97,7 +183,7 @@ const Profile = () => {
             </div>
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">Current Semester</p>
-              <p className="font-medium text-foreground">{studentData.semester}</p>
+              <p className="font-medium text-foreground">Fall 2024</p>
             </div>
           </div>
         </div>
@@ -106,6 +192,7 @@ const Profile = () => {
         <Button 
           variant="outline" 
           className="w-full rounded-xl gap-2 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          onClick={handleSignOut}
         >
           <LogOut className="h-5 w-5" />
           Sign Out
