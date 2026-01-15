@@ -1,4 +1,4 @@
-import { Bell, User, Settings, LogOut } from "lucide-react";
+import { User, Settings, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,11 +43,6 @@ const AdminHeader = () => {
 
         {/* Right Side */}
         <div className="flex items-center gap-2 flex-1 justify-end">
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative rounded-xl hover:bg-muted">
-            <Bell className="h-5 w-5 text-muted-foreground" />
-          </Button>
-
           {/* User Profile with Dropdown */}
           <div className="flex items-center gap-3 pl-2 border-l border-border">
             <div className="hidden sm:block text-right">

@@ -35,33 +35,10 @@ const Index = () => {
     }
   }, [isAdmin, profile, navigate]);
 
-  // Fetch data when profile loads (only once)
+  // Fetch data when profile loads (always fetch fresh data to ensure accuracy)
   useEffect(() => {
     if (profile?.roll_number && !isAdmin && !hasFetched) {
-      // Check cache first
-      const cacheKey = `dashboard-stats-${profile.roll_number}`;
-      const cached = sessionStorage.getItem(cacheKey);
-
-      if (cached) {
-        try {
-          const { stats, deadlines } = JSON.parse(cached);
-          setStats(stats);
-          setCategoryData([
-            { name: "Labs", score: stats.labs.score, total: stats.labs.total },
-            { name: "Assignments", score: stats.assignments.score, total: stats.assignments.total },
-            { name: "Quizzes", score: stats.quizzes.score, total: stats.quizzes.total },
-            { name: "Exams", score: stats.exams.score, total: stats.exams.total },
-          ]);
-          setUpcomingDeadlines(deadlines);
-          setLoading(false);
-          setHasFetched(true);
-        } catch (e) {
-          console.error(e);
-          fetchDashboardData();
-        }
-      } else {
-        fetchDashboardData();
-      }
+      fetchDashboardData();
     } else if (profile === null && !isAdmin) {
       // Only set loading to false if profile is explicitly null (not loading)
       setLoading(false);
@@ -94,9 +71,7 @@ const Index = () => {
       setUpcomingDeadlines(deadlines);
       setHasFetched(true);
 
-      // Update cache
-      const cacheKey = `dashboard-stats-${profile.roll_number}`;
-      sessionStorage.setItem(cacheKey, JSON.stringify({ stats: statsData, deadlines }));
+      // Don't cache - always fetch fresh data to ensure accuracy
 
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
@@ -154,13 +129,13 @@ const Index = () => {
           />
           <StatCard
             title="Assignments"
-            value={loading ? <Skeleton className="h-6 w-12" /> : (stats ? `${stats.assignments.total > 0 ? Math.round((stats.assignments.score / stats.assignments.total) * 100) : 0}%` : '0%')}
+            value={loading ? <Skeleton className="h-6 w-12" /> : (stats && stats.assignments.total > 0 ? `${Math.round((stats.assignments.score / stats.assignments.total) * 100)}%` : stats && stats.assignments.count > 0 ? '0%' : '—')}
             subtitle={assignmentsSubmitted > 0 ? `${assignmentsSubmitted} submitted` : 'No assignments yet'}
             icon={<FileText className="h-5 w-5 text-muted-foreground" />}
           />
           <StatCard
             title="Quizzes"
-            value={loading ? <Skeleton className="h-6 w-12" /> : (stats ? `${stats.quizzes.total > 0 ? Math.round((stats.quizzes.score / stats.quizzes.total) * 100) : 0}%` : '0%')}
+            value={loading ? <Skeleton className="h-6 w-12" /> : (stats && stats.quizzes.total > 0 ? `${Math.round((stats.quizzes.score / stats.quizzes.total) * 100)}%` : stats && stats.quizzes.count > 0 ? '0%' : '—')}
             subtitle={quizzesTaken > 0 ? `${quizzesTaken} taken` : 'No quizzes yet'}
             icon={<HelpCircle className="h-5 w-5 text-secondary-foreground" />}
             variant="secondary"

@@ -33,6 +33,9 @@ const LabCard = ({ lab }: { lab: Lab }) => {
       <div className="flex items-start justify-between gap-4 mb-4">
         <div className="flex-1">
           <h3 className="font-semibold text-foreground mb-1">Lab {lab.lab_number}: {lab.title}</h3>
+          {lab.description && (
+            <p className="text-sm text-muted-foreground mb-2 mt-1">{lab.description}</p>
+          )}
           {lab.taken_date && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
@@ -122,6 +125,9 @@ const AssignmentCard = ({ assignment }: { assignment: Assignment }) => {
               {status.label}
             </div>
           </div>
+          {assignment.description && (
+            <p className="text-sm text-muted-foreground mb-2 mt-1">{assignment.description}</p>
+          )}
         </div>
       </div>
 
@@ -335,8 +341,8 @@ const Materials = () => {
       ]);
       // Sort labs by lab_number descending (latest first) - ensure numeric sorting
       const sortedLabs = [...labsData].sort((a, b) => {
-        const numA = typeof a.lab_number === 'number' ? a.lab_number : parseInt(a.lab_number.toString(), 10);
-        const numB = typeof b.lab_number === 'number' ? b.lab_number : parseInt(b.lab_number.toString(), 10);
+        const numA = typeof a.lab_number === 'number' ? a.lab_number : parseInt(String(a.lab_number), 10);
+        const numB = typeof b.lab_number === 'number' ? b.lab_number : parseInt(String(b.lab_number), 10);
         return numB - numA; // Descending order
       });
       setLabs(sortedLabs);

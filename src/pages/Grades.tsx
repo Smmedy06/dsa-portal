@@ -105,17 +105,6 @@ const Grades = () => {
 
   useEffect(() => {
     if (profile?.roll_number) {
-      // Check for cached data first
-      const cached = sessionStorage.getItem(`grades-${profile.roll_number}`);
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setGradeData(parsed);
-          setLoading(false);
-        } catch (e) {
-          console.error("Error parsing cached grades", e);
-        }
-      }
       fetchGrades();
     }
   }, [profile]);
@@ -131,7 +120,7 @@ const Grades = () => {
       const data = await getStudentGrades(profile.roll_number, profile.section as 'CS-F24-M' | 'CS-F24-A' | undefined);
       setGradeData(data);
       // Cache the fresh data
-      sessionStorage.setItem(`grades-${profile.roll_number}`, JSON.stringify(data));
+      setGradeData(data);
     } catch (error: any) {
       console.error('Error fetching grades:', error);
     } finally {

@@ -193,6 +193,47 @@ export async function saveGradeSheetConfig(
 }
 
 /**
+ * Get auto-sync enabled status for a section
+ */
+export async function getAutoSyncEnabled(section: 'CS-F24-M' | 'CS-F24-A'): Promise<boolean> {
+  try {
+    const config = await getGradeSheetConfig(section);
+    return (config as any)?.auto_sync_enabled ?? false;
+  } catch (error) {
+    console.error('Error getting auto-sync status:', error);
+    return false;
+  }
+}
+
+/**
+ * Set auto-sync enabled status for a section
+ */
+export async function setAutoSyncEnabled(
+  sheetId: string,
+  section: 'CS-F24-M' | 'CS-F24-A',
+  enabled: boolean
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('grade_sheets')
+      .update({ auto_sync_enabled: enabled } as any)
+      .eq('sheet_id', sheetId)
+      .eq('section', section);
+
+    if (error) {
+      // If column doesn't exist, provide helpful error message
+      if (error.code === '42703' || error.message?.includes('column')) {
+        throw new Error('auto_sync_enabled column not found. Please run migration 006_add_auto_sync_enabled.sql');
+      }
+      throw error;
+    }
+  } catch (error: any) {
+    console.error('Error setting auto-sync status:', error);
+    throw error;
+  }
+}
+
+/**
  * Get grade sheet configuration for a specific section
  */
 export async function getGradeSheetConfig(section: 'CS-F24-M' | 'CS-F24-A'): Promise<GradeSheet | null> {
@@ -240,6 +281,28 @@ export async function getGradeSheetConfig(section: 'CS-F24-M' | 'CS-F24-A'): Pro
   } catch (error: any) {
     console.error('Unexpected error in getGradeSheetConfig:', error);
     // Always return null instead of throwing to prevent app crash
+    return null;
+  }
+}
+
+/**
+ * Get grade sheet configuration by sheet ID (more reliable than section)
+ */
+export async function getGradeSheetConfigById(sheetId: string): Promise<GradeSheet | null> {
+  try {
+    const { data, error } = await supabase
+      .from('grade_sheets')
+      .select('*')
+      .eq('sheet_id', sheetId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching config by ID:', error);
+      return null;
+    }
+    return data;
+  } catch (error) {
+    console.error('Unexpected error in getGradeSheetConfigById:', error);
     return null;
   }
 }
@@ -348,16 +411,23 @@ export async function updateTabVisibility(
           throw new Error(`Tab ${tabName} not found`);
         }
 
-        // Create a new array with updated visibility
-        const updatedTabs = [...tabs];
-        updatedTabs[tabIndex] = {
-          ...updatedTabs[tabIndex],
-          visible: visible,
-        };
+        // CRITICAL: Create a deep copy to ensure Supabase detects the JSONB change
+        const updatedTabs = tabs.map((tab, index) => {
+          if (index === tabIndex) {
+            return {
+              ...tab,
+              visible: visible,
+            };
+          }
+          return tab;
+        });
 
         const { error: updateError } = await supabase
           .from('grade_sheets')
-          .update({ tabs: updatedTabs as any })
+          .update({ 
+            tabs: JSON.parse(JSON.stringify(updatedTabs)) as any,
+            updated_at: new Date().toISOString()
+          })
           .eq('sheet_id', sheetId);
 
         if (updateError) throw updateError;
@@ -373,27 +443,36 @@ export async function updateTabVisibility(
       throw new Error(`Tab ${tabName} not found`);
     }
 
-    // Create a new array with updated visibility to ensure the update is detected
-    const updatedTabs = [...tabs];
-    updatedTabs[tabIndex] = {
-      ...updatedTabs[tabIndex],
-      visible: visible,
-    };
+    // CRITICAL: Create a deep copy to ensure Supabase detects the JSONB change
+    const updatedTabs = tabs.map((tab, index) => {
+      if (index === tabIndex) {
+        return {
+          ...tab,
+          visible: visible,
+        };
+      }
+      return tab;
+    });
 
-    let updateQuery = supabase
+    // CRITICAL: Use JSON.stringify to ensure Supabase detects the JSONB change
+    const { error: updateError } = await supabase
       .from('grade_sheets')
-      .update({ tabs: updatedTabs as any })
-      .eq('sheet_id', sheetId);
-    
-    // Try with section filter
-    const { error: updateError } = await updateQuery.eq('section', section);
+      .update({ 
+        tabs: JSON.parse(JSON.stringify(updatedTabs)) as any,
+        updated_at: new Date().toISOString()
+      })
+      .eq('sheet_id', sheetId)
+      .eq('section', section);
 
     if (updateError) {
       // If section column doesn't exist, try without it
       if (updateError.code === '42703' || updateError.message?.includes('column') || updateError.message?.includes('does not exist')) {
         const { error: fallbackError } = await supabase
           .from('grade_sheets')
-          .update({ tabs: updatedTabs as any })
+          .update({ 
+            tabs: JSON.parse(JSON.stringify(updatedTabs)) as any,
+            updated_at: new Date().toISOString()
+          })
           .eq('sheet_id', sheetId);
         
         if (fallbackError) throw fallbackError;
@@ -443,16 +522,23 @@ export async function updateColumnVisibility(
           throw new Error(`Tab ${tabName} not found`);
         }
 
-        // Create a new array with updated visibleColumns
-        const updatedTabs = [...tabs];
-        updatedTabs[tabIndex] = {
-          ...updatedTabs[tabIndex],
-          visibleColumns: visibleColumns,
-        };
+        // CRITICAL: Create a deep copy to ensure Supabase detects the JSONB change
+        const updatedTabs = tabs.map((tab, index) => {
+          if (index === tabIndex) {
+            return {
+              ...tab,
+              visibleColumns: [...visibleColumns], // New array reference
+            };
+          }
+          return tab;
+        });
 
         const { error: updateError } = await supabase
           .from('grade_sheets')
-          .update({ tabs: updatedTabs as any })
+          .update({ 
+            tabs: JSON.parse(JSON.stringify(updatedTabs)) as any,
+            updated_at: new Date().toISOString()
+          })
           .eq('sheet_id', sheetId);
 
         if (updateError) throw updateError;
@@ -468,27 +554,38 @@ export async function updateColumnVisibility(
       throw new Error(`Tab ${tabName} not found`);
     }
 
-    // Create a new array with updated visibleColumns
-    const updatedTabs = [...tabs];
-    updatedTabs[tabIndex] = {
-      ...updatedTabs[tabIndex],
-      visibleColumns: visibleColumns,
-    };
+    // CRITICAL: Create a deep copy to ensure Supabase detects the JSONB change
+    // Simply spreading the array isn't enough - we need to create new objects
+    const updatedTabs = tabs.map((tab, index) => {
+      if (index === tabIndex) {
+        // Create a completely new object for the updated tab
+        return {
+          ...tab,
+          visibleColumns: [...visibleColumns], // New array reference
+        };
+      }
+      return tab;
+    });
 
-    let updateQuery = supabase
+    // CRITICAL: Use JSON.stringify to ensure Supabase detects the JSONB change
+    const { error: updateError } = await supabase
       .from('grade_sheets')
-      .update({ tabs: updatedTabs as any })
-      .eq('sheet_id', sheetId);
-    
-    // Try with section filter
-    const { error: updateError } = await updateQuery.eq('section', section);
+      .update({ 
+        tabs: JSON.parse(JSON.stringify(updatedTabs)) as any,
+        updated_at: new Date().toISOString()
+      })
+      .eq('sheet_id', sheetId)
+      .eq('section', section);
 
     if (updateError) {
       // If section column doesn't exist, try without it
       if (updateError.code === '42703' || updateError.message?.includes('column') || updateError.message?.includes('does not exist')) {
         const { error: fallbackError } = await supabase
           .from('grade_sheets')
-          .update({ tabs: updatedTabs as any })
+          .update({ 
+            tabs: JSON.parse(JSON.stringify(updatedTabs)) as any,
+            updated_at: new Date().toISOString()
+          })
           .eq('sheet_id', sheetId);
         
         if (fallbackError) throw fallbackError;

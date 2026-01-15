@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Eye, EyeOff, RefreshCw, ExternalLink, Loader2, Clock } from "lucide-react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import {
   updateColumnVisibility,
   updateTabVisibility,
   syncSheetData,
+  getAutoSyncEnabled,
+  setAutoSyncEnabled as updateAutoSyncEnabled,
   type GradeSheet,
 } from "@/lib/googleSheets";
 
@@ -34,6 +36,7 @@ const AdminGrades = () => {
   const [loading, setLoading] = useState(false); // Start as false, set to true only when fetching
   const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Initialize from database (shared across all admins)
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [autoSyncInterval, setAutoSyncInterval] = useState<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
@@ -44,18 +47,23 @@ const AdminGrades = () => {
     try {
       setLoading(true);
       const config = await getGradeSheetConfig(selectedSection);
-      
+
       if (config) {
         setGradeSheet(config);
         setSheetUrl(config.sheet_url);
+        // Load auto-sync status from database
+        const autoSync = await getAutoSyncEnabled(selectedSection);
+        setAutoSyncEnabled(autoSync);
       } else {
         setGradeSheet(null);
         setSheetUrl("");
+        setAutoSyncEnabled(false);
       }
     } catch (error: any) {
       console.error('Error fetching grade sheet config:', error);
       setGradeSheet(null);
       setSheetUrl("");
+      setAutoSyncEnabled(false);
       // Don't show toast for column errors (migration not run)
       if (!error.message?.includes('column') && !error.message?.includes('does not exist')) {
         toast({
@@ -73,72 +81,120 @@ const AdminGrades = () => {
     fetchConfig();
   }, [fetchConfig]);
 
-  // Auto-sync effect
+  // Keep a ref to the latest gradeSheet to avoid stale closures in the interval
+  const gradeSheetRef = useRef(gradeSheet);
   useEffect(() => {
-    if (autoSyncEnabled && gradeSheet && !syncing) {
-      // Sync immediately, then every 5 minutes
-      const performSync = async () => {
-        try {
-          setSyncing(true);
-          const result = await syncSheetData(gradeSheet.sheet_id);
-          
+    gradeSheetRef.current = gradeSheet;
+  }, [gradeSheet]);
+
+  // Use ref to track if sync is in progress (prevents concurrent syncs)
+  const syncingRef = useRef(false);
+
+  // Auto-sync effect - runs on fixed interval (30 minutes)
+  useEffect(() => {
+    if (!autoSyncEnabled) {
+      // Clear interval if auto-sync is disabled
+      if (autoSyncInterval) {
+        clearInterval(autoSyncInterval);
+        setAutoSyncInterval(null);
+      }
+      return;
+    }
+
+    const performSync = async () => {
+      // Use the ref to get the absolute latest config
+      const currentSheet = gradeSheetRef.current;
+
+      // Safety checks
+      if (!currentSheet || !currentSheet.sheet_id) return;
+      
+      // Prevent concurrent syncs using ref (more reliable than state)
+      if (syncingRef.current) {
+        console.log('Sync already in progress, skipping...');
+        return;
+      }
+
+      try {
+        syncingRef.current = true;
+        setSyncing(true);
+        const result = await syncSheetData(currentSheet.sheet_id);
+
           if (result.success && result.tabsInfo) {
+            // Re-read latest from ref again just in case it verified slightly during await
+            const freshSheet = gradeSheetRef.current || currentSheet;
+
+            // Preserve existing visibility settings during auto-sync
+            const existingTabs = freshSheet.tabs ? (freshSheet.tabs as any as TabConfig[]) : [];
+            const existingTabsMap = new Map(existingTabs.map(t => [t.name, t]));
+
             const detectedTabs: TabConfig[] = result.tabsInfo.map(tabInfo => {
-              const visibleColumns = tabInfo.columns.filter(col => {
+              const existingTab = existingTabsMap.get(tabInfo.name);
+
+              // Filter function for columns that should be hidden by default
+              const shouldHideByDefault = (col: string) => {
                 const colLower = col.toLowerCase().trim();
                 return (
-                  col !== tabInfo.rollNumberColumn &&
-                  colLower !== 'student name' &&
-                  colLower !== 'name' &&
-                  !colLower.includes('pct') &&
-                  (colLower.includes('total') ? colLower.includes('penalty') : true) &&
-                  !(colLower.includes('percentage') && !colLower.includes('penalty')) &&
-                  colLower !== '%'
+                  col === tabInfo.rollNumberColumn ||
+                  colLower === 'student name' ||
+                  colLower === 'name' ||
+                  colLower.includes('pct') ||
+                  (colLower.includes('total') && !colLower.includes('penalty')) ||
+                  (colLower.includes('percentage') && !colLower.includes('penalty')) ||
+                  colLower === '%'
                 );
-              });
-              
+              };
+
+              // CRITICAL: Preserve existing visibleColumns EXACTLY as they were
+              // Only filter out columns that no longer exist in the sheet
+              let visibleColumns: string[];
+              if (existingTab && existingTab.visibleColumns) {
+                // Preserve existing visibility settings - filter only non-existent columns
+                visibleColumns = existingTab.visibleColumns.filter(col => tabInfo.columns.includes(col));
+              } else {
+                // New tab: hide columns that match exclusion patterns by default
+                visibleColumns = tabInfo.columns.filter(col => !shouldHideByDefault(col));
+              }
+
               return {
                 name: tabInfo.name,
                 columns: tabInfo.columns,
                 visibleColumns: visibleColumns,
                 rollNumberColumn: tabInfo.rollNumberColumn,
-                visible: true,
+                visible: existingTab?.visible !== undefined ? existingTab.visible : true,
               };
             });
 
             if (user) {
               await saveGradeSheetConfig(
-                gradeSheet.sheet_url,
-                gradeSheet.sheet_id,
+                freshSheet.sheet_url,
+                freshSheet.sheet_id,
                 selectedSection,
                 detectedTabs,
                 user.id
               );
             }
           }
-          
+
+          // Always fetch new config to ensure UI matches DB
           await fetchConfig();
         } catch (error: any) {
           console.error('Auto-sync error:', error);
         } finally {
+          syncingRef.current = false;
           setSyncing(false);
         }
       };
-      
-      performSync();
-      const interval = setInterval(performSync, 5 * 60 * 1000); // 5 minutes
+
+      // Set up interval - 30 minutes (1800000 ms)
+      // Don't sync immediately - wait for the first interval
+      const interval = setInterval(performSync, 30 * 60 * 1000); // 30 minutes
       setAutoSyncInterval(interval);
-      
+
       return () => {
-        if (interval) clearInterval(interval);
+        clearInterval(interval);
+        syncingRef.current = false;
       };
-    } else {
-      if (autoSyncInterval) {
-        clearInterval(autoSyncInterval);
-        setAutoSyncInterval(null);
-      }
-    }
-  }, [autoSyncEnabled, gradeSheet?.sheet_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoSyncEnabled, selectedSection]); // Re-run when section changes to update interval
 
   const handleSaveSheet = async () => {
     if (!sheetUrl.trim()) {
@@ -171,15 +227,15 @@ const AdminGrades = () => {
 
     try {
       setSaving(true);
-      
+
       // Create empty tabs structure - will be populated after sync
       const emptyTabs: TabConfig[] = [];
 
       const config = await saveGradeSheetConfig(sheetUrl, sheetId, selectedSection, emptyTabs, user.id);
-      
+
       setGradeSheet(config);
       setSheetUrl(config.sheet_url);
-      
+
       toast({
         title: "Success",
         description: "Google Sheet configuration saved. Now sync to detect tabs and columns.",
@@ -209,38 +265,50 @@ const AdminGrades = () => {
     try {
       setSyncing(true);
       const result = await syncSheetData(gradeSheet.sheet_id);
-      
+
       if (result.success && result.tabsInfo) {
         // Preserve existing visibility settings when syncing
-        const existingTabs = (gradeSheet.tabs as TabConfig[]) || [];
+        const existingTabs = (gradeSheet.tabs as any as TabConfig[]) || [];
         const existingTabsMap = new Map(existingTabs.map(t => [t.name, t]));
-        
+
         // Auto-update tabs with detected columns, preserving existing visibility settings
         const detectedTabs: TabConfig[] = result.tabsInfo.map(tabInfo => {
           const existingTab = existingTabsMap.get(tabInfo.name);
-          
+
           // Filter out summary columns and metadata columns (but allow LAB PENALTY and COURSE PENALTY)
-          const defaultVisibleColumns = tabInfo.columns.filter(col => {
+          // This is the default filter - columns matching these patterns should be hidden by default
+          const shouldHideByDefault = (col: string) => {
             const colLower = col.toLowerCase().trim();
             return (
-              col !== tabInfo.rollNumberColumn &&
-              colLower !== 'student name' &&
-              colLower !== 'name' &&
-              !colLower.includes('pct') &&
-              (colLower.includes('total') ? colLower.includes('penalty') : true) && // Allow TOTAL only if it's part of PENALTY
-              !(colLower.includes('percentage') && !colLower.includes('penalty')) &&
-              colLower !== '%'
+              col === tabInfo.rollNumberColumn ||
+              colLower === 'student name' ||
+              colLower === 'name' ||
+              colLower.includes('pct') ||
+              (colLower.includes('total') && !colLower.includes('penalty')) ||
+              (colLower.includes('percentage') && !colLower.includes('penalty')) ||
+              colLower === '%'
             );
-          });
-          
-          // Preserve existing visibility settings if tab exists
-          const visibleColumns = existingTab?.visibleColumns || defaultVisibleColumns;
+          };
+
+          // CRITICAL: For existing tabs, preserve the exact visibleColumns
+          // For new tabs, start with columns hidden if they match exclusion patterns
+          let visibleColumns: string[];
+          if (existingTab && existingTab.visibleColumns) {
+            // Preserve existing visibleColumns EXACTLY as they were
+            // Only remove columns that no longer exist in the sheet
+            visibleColumns = existingTab.visibleColumns.filter(col => tabInfo.columns.includes(col));
+            // DO NOT auto-add new columns - admin must manually enable them
+          } else {
+            // New tab: hide columns that match exclusion patterns by default
+            visibleColumns = tabInfo.columns.filter(col => !shouldHideByDefault(col));
+          }
+
           const visible = existingTab?.visible !== undefined ? existingTab.visible : true;
-          
+
           return {
             name: tabInfo.name,
             columns: tabInfo.columns,
-            visibleColumns: visibleColumns, // Preserve existing or use default
+            visibleColumns: visibleColumns, // Preserve existing or use filtered default
             rollNumberColumn: tabInfo.rollNumberColumn,
             visible: visible, // Preserve existing visibility setting
           };
@@ -257,12 +325,12 @@ const AdminGrades = () => {
           );
         }
       }
-      
+
       toast({
         title: "Success",
         description: `Synced ${result.tabsSynced} tabs and ${result.studentsSynced} students. Tabs and columns detected automatically.`,
       });
-      
+
       // Refresh config to get updated tabs
       await fetchConfig();
     } catch (error: any) {
@@ -280,19 +348,47 @@ const AdminGrades = () => {
     if (!gradeSheet) return;
 
     try {
-      // Update in database first
+      const tabs = (gradeSheet.tabs as any[]) || [];
+      const tab = tabs.find(t => t.name === tabName);
+      if (!tab) {
+        toast({
+          title: "Error",
+          description: `Tab '${tabName}' not found`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Optimistically update UI immediately
+      const updatedTabs = tabs.map(t => {
+        if (t.name === tabName) {
+          return {
+            ...t,
+            visible: visible,
+          };
+        }
+        return t;
+      });
+
+      // Update local state immediately for instant feedback
+      setGradeSheet({
+        ...gradeSheet,
+        tabs: updatedTabs as any,
+      });
+
+      // Save to database
       await updateTabVisibility(gradeSheet.sheet_id, selectedSection, tabName, visible);
-      
-      // Refresh config from server to get updated state
+
+      // Refresh config from database to ensure consistency
       await fetchConfig();
-      
+
       toast({
         title: "Success",
         description: `Tab '${tabName}' is now ${visible ? 'visible' : 'hidden'} to students`,
       });
     } catch (error: any) {
       console.error('Error toggling tab visibility:', error);
-      // Refresh config on error to revert any changes
+      // Revert optimistic update on error
       await fetchConfig();
       toast({
         title: "Error",
@@ -308,22 +404,51 @@ const AdminGrades = () => {
     try {
       const tabs = (gradeSheet.tabs as any[]) || [];
       const tab = tabs.find(t => t.name === tabName);
-      if (!tab) return;
+      if (!tab) {
+        toast({
+          title: "Error",
+          description: `Tab '${tabName}' not found`,
+          variant: "destructive",
+        });
+        return;
+      }
 
+      // Calculate new visible columns
       const visibleColumns = visible
-        ? [...tab.visibleColumns, columnName]
-        : tab.visibleColumns.filter((c: string) => c !== columnName);
+        ? [...(tab.visibleColumns || []), columnName]
+        : (tab.visibleColumns || []).filter((c: string) => c !== columnName);
 
+      // Optimistically update UI immediately
+      const updatedTabs = tabs.map(t => {
+        if (t.name === tabName) {
+          return {
+            ...t,
+            visibleColumns: [...visibleColumns], // New array reference
+          };
+        }
+        return t;
+      });
+
+      // Update local state immediately for instant feedback
+      setGradeSheet({
+        ...gradeSheet,
+        tabs: updatedTabs as any,
+      });
+
+      // Save to database
       await updateColumnVisibility(gradeSheet.sheet_id, selectedSection, tabName, visibleColumns);
-      
-      // Refresh config
+
+      // Refresh config from database to ensure consistency
       await fetchConfig();
-      
+
       toast({
         title: "Success",
-        description: `Column visibility updated`,
+        description: `Column '${columnName}' is now ${visible ? 'visible' : 'hidden'} to students`,
       });
     } catch (error: any) {
+      console.error('Error toggling column visibility:', error);
+      // Revert optimistic update on error
+      await fetchConfig();
       toast({
         title: "Error",
         description: error.message || "Failed to update column visibility",
@@ -334,12 +459,17 @@ const AdminGrades = () => {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "Never";
-    return new Date(dateString).toLocaleString('en-US', {
+    // Parse the date string and format it in local timezone
+    const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) return "Invalid Date";
+    return date.toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      timeZoneName: 'short',
     });
   };
 
@@ -354,17 +484,37 @@ const AdminGrades = () => {
             <p className="text-muted-foreground">Configure Google Sheets integration and column visibility</p>
           </div>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="rounded-xl gap-2"
-              onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
+              onClick={async () => {
+                if (!gradeSheet) return;
+                
+                const newValue = !autoSyncEnabled;
+                try {
+                  // Save to database (shared across all admins)
+                  await updateAutoSyncEnabled(gradeSheet.sheet_id, selectedSection, newValue);
+                  setAutoSyncEnabled(newValue);
+                  toast({
+                    title: "Success",
+                    description: `Auto-sync ${newValue ? 'enabled' : 'disabled'} for ${selectedSection}`,
+                  });
+                } catch (error: any) {
+                  console.error('Error updating auto-sync:', error);
+                  toast({
+                    title: "Error",
+                    description: error.message || "Failed to update auto-sync setting",
+                    variant: "destructive",
+                  });
+                }
+              }}
               disabled={!gradeSheet}
             >
               <Clock className="h-4 w-4" />
               {autoSyncEnabled ? 'Auto-Sync On' : 'Auto-Sync Off'}
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="rounded-xl gap-2"
               onClick={handleSync}
               disabled={!gradeSheet || syncing}
@@ -385,7 +535,7 @@ const AdminGrades = () => {
         </div>
 
         {/* Section Selector */}
-        <div 
+        <div
           className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
           style={{ animationDelay: "50ms" }}
         >
@@ -407,7 +557,7 @@ const AdminGrades = () => {
         </div>
 
         {/* Google Sheets Connection */}
-        <div 
+        <div
           className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
           style={{ animationDelay: "100ms" }}
         >
@@ -416,17 +566,17 @@ const AdminGrades = () => {
             <div className="space-y-2">
               <Label htmlFor="sheetUrl">Google Sheet URL for {selectedSection}</Label>
               <div className="flex gap-2">
-                <Input 
-                  id="sheetUrl" 
-                  placeholder="https://docs.google.com/spreadsheets/d/..." 
+                <Input
+                  id="sheetUrl"
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
                   className="rounded-xl flex-1"
                   value={sheetUrl}
                   onChange={(e) => setSheetUrl(e.target.value)}
                   disabled={saving || loading}
                 />
                 {gradeSheet && (
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="rounded-xl"
                     onClick={() => window.open(gradeSheet.sheet_url, '_blank')}
                   >
@@ -439,7 +589,7 @@ const AdminGrades = () => {
               </p>
             </div>
 
-            <Button 
+            <Button
               onClick={handleSaveSheet}
               className="rounded-xl bg-primary"
               disabled={saving || loading || !sheetUrl.trim()}
@@ -477,15 +627,15 @@ const AdminGrades = () => {
           </div>
         ) : tabs.length > 0 ? (
           tabs.map((tab, tabIndex) => {
-            const gradeColumns = tab.columns.filter((col: string) => 
-              col !== tab.rollNumberColumn && 
+            const gradeColumns = tab.columns.filter((col: string) =>
+              col !== tab.rollNumberColumn &&
               col.toLowerCase() !== "student name" &&
               col.toLowerCase() !== "name"
             );
             const visibleCount = tab.visibleColumns.length;
 
             return (
-              <div 
+              <div
                 key={tab.name}
                 className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
                 style={{ animationDelay: `${(tabIndex + 2) * 100}ms` }}
@@ -504,9 +654,9 @@ const AdminGrades = () => {
                     {visibleCount} of {gradeColumns.length} visible
                   </p>
                 </div>
-                
+
                 <p className="text-sm text-muted-foreground mb-4">
-                  {tab.visible !== false 
+                  {tab.visible !== false
                     ? "Control which grade columns are visible to students. Hidden columns will not appear in the student grades view."
                     : "This tab is hidden from students. Toggle above to show it."}
                 </p>
@@ -517,12 +667,12 @@ const AdminGrades = () => {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {gradeColumns.map((column: string) => {
                         const isVisible = tab.visibleColumns.includes(column);
-                        const isLocked = column === tab.rollNumberColumn || 
-                                        column.toLowerCase() === "student name" ||
-                                        column.toLowerCase() === "name";
-                        
+                        const isLocked = column === tab.rollNumberColumn ||
+                          column.toLowerCase() === "student name" ||
+                          column.toLowerCase() === "name";
+
                         return (
-                          <div 
+                          <div
                             key={column}
                             className="flex items-center justify-between p-3 rounded-xl bg-muted/30"
                           >
@@ -534,8 +684,8 @@ const AdminGrades = () => {
                               )}
                               <span className="text-sm font-medium">{column}</span>
                             </div>
-                            <Switch 
-                              checked={isVisible} 
+                            <Switch
+                              checked={isVisible}
                               disabled={isLocked}
                               onCheckedChange={(checked) => {
                                 handleToggleColumn(tab.name, column, checked);

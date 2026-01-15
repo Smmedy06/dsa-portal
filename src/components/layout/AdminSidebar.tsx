@@ -108,7 +108,7 @@ const AdminSidebar = () => {
         </Link>
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          className="w-full justify-start gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 hover:text-destructive"
           onClick={handleSignOut}
         >
           <LogOut className="h-5 w-5" />

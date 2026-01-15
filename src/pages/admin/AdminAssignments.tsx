@@ -450,7 +450,12 @@ const AdminAssignments = () => {
                             <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md" onClick={() => handleDownload(file.file_url, file.file_name)}>
                               <Download className="h-3 w-3" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md text-destructive" onClick={() => handleDeleteFile(file.id, file.file_url)}>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 rounded-md text-destructive" 
+                              onClick={() => handleDeleteFileClick(file.id, file.file_url)}
+                            >
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
@@ -462,7 +467,12 @@ const AdminAssignments = () => {
                             <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md" onClick={() => handleDownload(file.file_url, file.file_name)}>
                               <Download className="h-3 w-3" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md text-destructive" onClick={() => handleDeleteFile(file.id, file.file_url)}>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 rounded-md text-destructive" 
+                              onClick={() => handleDeleteFileClick(file.id, file.file_url)}
+                            >
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
@@ -474,7 +484,12 @@ const AdminAssignments = () => {
                             <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md" onClick={() => handleDownload(file.file_url, file.file_name)}>
                               <Download className="h-3 w-3" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md text-destructive" onClick={() => handleDeleteFile(file.id, file.file_url)}>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 rounded-md text-destructive" 
+                              onClick={() => handleDeleteFileClick(file.id, file.file_url)}
+                            >
                               <X className="h-3 w-3" />
                             </Button>
                           </div>

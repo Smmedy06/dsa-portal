@@ -1,13 +1,221 @@
-import { Bell, Calendar, Shield, Users, LogOut, GraduationCap } from "lucide-react";
+import { useState, useEffect, type FormEvent } from "react";
+import { Copy, Plus, Trash2, Calendar, Users, LogOut, GraduationCap, AlertTriangle, Loader2, X } from "lucide-react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { DEFAULT_GRADE_SCALE } from "@/lib/grading";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+type Admin = {
+  id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+  added_at: string;
+};
 
 const AdminSettings = () => {
+  const { signOut, user } = useAuth();
+  const { toast } = useToast();
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [addingAdmin, setAddingAdmin] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [adminToDelete, setAdminToDelete] = useState<Admin | null>(null);
+
+  const fetchAdmins = async () => {
+    try {
+      setLoadingAdmins(true);
+      const { data, error } = await supabase
+        .from('admins')
+        .select('*')
+        .order('added_at', { ascending: false });
+
+      if (error) throw error;
+      setAdmins(data || []);
+    } catch (error: any) {
+      console.error("Error fetching admins:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch admins",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdmins();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  const handleAddAdmin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newAdminEmail.trim() || !newAdminEmail.includes('@')) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setAddingAdmin(true);
+
+      // Check if already exists in admins table
+      const { data: existing } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('email', newAdminEmail.toLowerCase())
+        .maybeSingle();
+
+      if (existing) {
+        toast({
+          title: "Info",
+          description: "This email is already in the admin list.",
+        });
+        setNewAdminEmail("");
+        return;
+      }
+
+      const { error } = await supabase
+        .from('admins')
+        .insert({
+          email: newAdminEmail.toLowerCase(),
+          name: newAdminEmail.split('@')[0], // Use email prefix as default name
+          is_active: true,
+          added_by: user?.id || null
+        } as any);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${newAdminEmail} has been added as a Teaching Assistant/Admin.`,
+      });
+      setNewAdminEmail("");
+      await fetchAdmins(); // Refresh admin list
+    } catch (error: any) {
+      console.error("Error adding admin:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add admin",
+        variant: "destructive",
+      });
+    } finally {
+      setAddingAdmin(false);
+    }
+  };
+
+  const handleRemoveAdminClick = (admin: Admin) => {
+    setAdminToDelete(admin);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleRemoveAdmin = async () => {
+    if (!adminToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('admins')
+        .delete()
+        .eq('id', adminToDelete.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${adminToDelete.email} has been removed as an admin.`,
+      });
+      setDeleteDialogOpen(false);
+      setAdminToDelete(null);
+      await fetchAdmins(); // Refresh admin list
+    } catch (error: any) {
+      console.error("Error removing admin:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove admin",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResetSystem = async () => {
+    const confirmed = window.confirm(
+      "CRITICAL WARNING: This will DELETE ALL student data, grades, and enrollments.\n\nOnly Admin accounts will remain.\n\nAre you absolutely sure you want to proceed?"
+    );
+
+    if (!confirmed) return;
+
+    const doubleConfirmed = window.confirm(
+      "Please confirm again: This action CANNOT be undone. All student progress will be lost.\n\nType OK to proceed."
+    );
+
+    if (!doubleConfirmed) return;
+
+    try {
+      setResetting(true);
+
+      // Call Supabase Edge Function or RPC if available, otherwise manual delete
+      // Since we don't have a dedicated RPC for "reset all", we'll delete from tables in order
+
+      // 1. Delete Grade Data
+      const { error: gradeError } = await supabase.from('grade_data').delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      if (gradeError) throw gradeError;
+
+      // 2. Delete Grade Sheets (Configs)
+      const { error: sheetError } = await supabase.from('grade_sheets').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (sheetError) throw sheetError;
+
+      // 3. Delete Enrolled Students
+      const { error: enrollError } = await supabase.from('enrolled_students').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (enrollError) throw enrollError;
+
+      // 4. Delete Students (Profiles)
+      const { error: studentError } = await supabase.from('students').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (studentError) throw studentError;
+
+      toast({
+        title: "System Reset Complete",
+        description: "All student data, grades, and enrollments have been wiped.",
+      });
+
+    } catch (error: any) {
+      console.error("Reset error:", error);
+      toast({
+        title: "Reset Failed",
+        description: error.message || "Failed to reset system data. Check permissions.",
+        variant: "destructive",
+      });
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6 max-w-2xl">
@@ -18,7 +226,7 @@ const AdminSettings = () => {
         </div>
 
         {/* Course Info */}
-        <div 
+        <div
           className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
           style={{ animationDelay: "100ms" }}
         >
@@ -32,107 +240,30 @@ const AdminSettings = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="courseName">Course Name</Label>
-              <Input 
-                id="courseName" 
-                defaultValue="Data Structures & Algorithms" 
+              <Input
+                id="courseName"
+                defaultValue="Data Structures & Algorithms"
                 className="rounded-xl"
+                readOnly
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="semester">Semester</Label>
-                <Input id="semester" defaultValue="Fall 2024" className="rounded-xl" />
+                <Input id="semester" defaultValue="Fall 2024" className="rounded-xl" readOnly />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="section">Section</Label>
-                <Input id="section" defaultValue="BCSF23M" className="rounded-xl" />
+                <Input id="section" defaultValue="BCS-F24" className="rounded-xl" readOnly />
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Notification Settings */}
-        <div 
-          className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
-          style={{ animationDelay: "200ms" }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-              <Bell className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <h2 className="text-lg font-semibold text-foreground">Student Notifications</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Grade Updates</p>
-                <p className="text-xs text-muted-foreground">Notify students when grades are updated</p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">New Materials</p>
-                <p className="text-xs text-muted-foreground">Notify students when new labs/assignments are uploaded</p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Deadline Reminders</p>
-                <p className="text-xs text-muted-foreground">Send reminders 24 hours before deadlines</p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Solution Releases</p>
-                <p className="text-xs text-muted-foreground">Notify students when solutions are available</p>
-              </div>
-              <Switch />
-            </div>
-          </div>
-        </div>
-
-        {/* Access Control */}
-        <div 
-          className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
-          style={{ animationDelay: "300ms" }}
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-              <Shield className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <h2 className="text-lg font-semibold text-foreground">Access Control</h2>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Require PUCIT Email</p>
-                <p className="text-xs text-muted-foreground">Only allow @pucit.edu.pk email addresses</p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">Enrollment Required</p>
-                <p className="text-xs text-muted-foreground">Students must be in the enrolled list to access</p>
-              </div>
-              <Switch defaultChecked />
             </div>
           </div>
         </div>
 
         {/* Grading System */}
-        <div 
+        <div
           className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
-          style={{ animationDelay: "400ms" }}
+          style={{ animationDelay: "200ms" }}
         >
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
@@ -167,55 +298,132 @@ const AdminSettings = () => {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Note: Students with 0% (no grades yet) will not be assigned an F grade.
-            </p>
           </div>
         </div>
 
         {/* Manage TAs */}
-        <div 
+        <div
           className="bg-card rounded-2xl border border-border p-6 animate-fade-in"
-          style={{ animationDelay: "500ms" }}
+          style={{ animationDelay: "300ms" }}
         >
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
               <Users className="h-5 w-5 text-muted-foreground" />
             </div>
-            <h2 className="text-lg font-semibold text-foreground">Teaching Assistants</h2>
+            <h2 className="text-lg font-semibold text-foreground">Teaching Assistants / Admins</h2>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
-              <div>
-                <p className="text-sm font-medium text-foreground">TA Name</p>
-                <p className="text-xs text-muted-foreground">ta@pucit.edu.pk</p>
+          <div className="space-y-4">
+            <form onSubmit={handleAddAdmin} className="flex gap-3">
+              <div className="flex-1">
+                <Label htmlFor="adminEmail" className="sr-only">Email</Label>
+                <Input
+                  id="adminEmail"
+                  placeholder="Enter TA email..."
+                  value={newAdminEmail}
+                  onChange={(e) => setNewAdminEmail(e.target.value)}
+                  className="rounded-xl"
+                />
               </div>
-              <span className="text-xs font-medium text-primary">Admin</span>
-            </div>
-            <Button variant="outline" className="w-full rounded-xl">
-              <Users className="h-4 w-4 mr-2" />
-              Add Teaching Assistant
-            </Button>
+              <Button type="submit" disabled={addingAdmin} className="rounded-xl">
+                {addingAdmin ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Add
+              </Button>
+            </form>
+            <p className="text-xs text-muted-foreground">
+              Added emails will be granted Admin access immediately. They must login with Google.
+            </p>
+
+            {/* Admin List */}
+            {loadingAdmins ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : admins.length > 0 ? (
+              <div className="space-y-2 mt-4">
+                <Label className="text-sm font-semibold">Current Admins ({admins.length})</Label>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {admins.map((admin) => (
+                    <div
+                      key={admin.id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-muted/50 border border-border"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{admin.email}</p>
+                        <p className="text-xs text-muted-foreground truncate">{admin.name}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleRemoveAdminClick(admin)}
+                        disabled={admin.email === user?.email}
+                        title={admin.email === user?.email ? "Cannot remove yourself" : "Remove admin"}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 text-sm text-muted-foreground mt-4">
+                No admins found. Add one above.
+              </div>
+            )}
           </div>
         </div>
 
+        {/* Remove Admin Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove Admin</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove {adminToDelete?.email} as an admin? They will lose access to the admin panel immediately.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleRemoveAdmin}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Danger Zone */}
-        <div 
+        <div
           className="bg-card rounded-2xl border border-destructive/30 p-6 animate-fade-in"
-          style={{ animationDelay: "600ms" }}
+          style={{ animationDelay: "400ms" }}
         >
-          <h2 className="text-lg font-semibold text-destructive mb-4">Danger Zone</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+            </div>
+            <h2 className="text-lg font-semibold text-destructive">Danger Zone</h2>
+          </div>
+
           <div className="space-y-3">
-            <Button 
-              variant="outline" 
-              className="w-full rounded-xl border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            <p className="text-sm text-muted-foreground">
+              These actions are irreversible. Proceed with caution.
+            </p>
+            <Button
+              variant="outline"
+              className="w-full rounded-xl border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground justify-start"
+              onClick={handleResetSystem}
+              disabled={resetting}
             >
-              Reset All Grades
+              {resetting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Reset System (Delete All Student Data)
             </Button>
-            <Button 
-              variant="outline" 
-              className="w-full rounded-xl border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            <Button
+              variant="outline"
+              className="w-full rounded-xl hover:bg-muted justify-start"
+              onClick={handleSignOut}
             >
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out

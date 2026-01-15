@@ -14,6 +14,7 @@ import {
 import {
   getStudentGradeData,
   getGradeSheetConfig,
+  getGradeSheetConfigById,
   type GradeData,
 } from './googleSheets';
 import { parseMaxMarks, getCleanColumnName } from './grading';
@@ -44,13 +45,21 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
   const gradeData = await getStudentGradeData(rollNumber);
   
   // Get grade sheet config to know which columns are visible
-  // Try to get section from user profile or use first available
+  // CRITICAL: Prioritize the sheet_id from the actual data to ensure we apply the correct visibility rules
   let gradeSheetConfig = null;
-  if (section) {
-    gradeSheetConfig = await getGradeSheetConfig(section);
-  } else {
-    // Try both sections
-    gradeSheetConfig = await getGradeSheetConfig('CS-F24-M') || await getGradeSheetConfig('CS-F24-A');
+  
+  if (gradeData.length > 0) {
+    const sheetId = gradeData[0].sheet_id;
+    gradeSheetConfig = await getGradeSheetConfigById(sheetId);
+  }
+  
+  // Fallback to section only if we couldn't find config by ID (or no data)
+  if (!gradeSheetConfig) {
+    if (section) {
+      gradeSheetConfig = await getGradeSheetConfig(section);
+    } else {
+      gradeSheetConfig = await getGradeSheetConfig('CS-F24-M');
+    }
   }
 
   const tabsMap = new Map<string, {
@@ -102,8 +111,12 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
 
     const tab = tabsMap.get(tabName)!;
 
-    // Get visible columns for this tab (default to all if no config)
-    const visibleColumns = tabConfig?.visibleColumns || Object.keys(tabData);
+    // Get visible columns for this tab
+    // CRITICAL: If visibleColumns exists (even if empty array), use it
+    // Only fallback to all columns if visibleColumns is undefined/null
+    const visibleColumns = tabConfig?.visibleColumns !== undefined 
+      ? tabConfig.visibleColumns 
+      : Object.keys(tabData);
 
     // Process each column in the tab data
     Object.keys(tabData).forEach((columnName) => {

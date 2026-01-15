@@ -11,6 +11,7 @@ export interface StudentRank {
   overallCourseGrade: number;
   overall: number;
   rank: number;
+  section: 'CS-F24-M' | 'CS-F24-A';
 }
 
 /**
@@ -88,5 +89,100 @@ export async function getStudentRank(
   } catch (error) {
     console.error('Error calculating rank:', error);
     return null;
+  }
+}
+
+/**
+ * Get top rankers from both sections
+ */
+export async function getTopRankers(limit: number = 5): Promise<{
+  morning: StudentRank[];
+  afternoon: StudentRank[];
+}> {
+  try {
+    // Get all students from both sections
+    const { data: morningStudents, error: morningError } = await supabase
+      .from('enrolled_students')
+      .select('roll_number, name')
+      .eq('section', 'CS-F24-M') as { data: { roll_number: string; name: string }[] | null, error: any };
+
+    const { data: afternoonStudents, error: afternoonError } = await supabase
+      .from('enrolled_students')
+      .select('roll_number, name')
+      .eq('section', 'CS-F24-A') as { data: { roll_number: string; name: string }[] | null, error: any };
+
+    if (morningError) throw morningError;
+    if (afternoonError) throw afternoonError;
+
+    // Calculate stats for all students in both sections
+    const morningStats = await Promise.all(
+      (morningStudents || []).map(async (student) => {
+        try {
+          const stats = await getStudentStats(student.roll_number, 'CS-F24-M');
+          if (stats.overall >= 0) {
+            return {
+              rollNumber: student.roll_number,
+              name: student.name,
+              overallLabGrade: stats.overallLabGrade,
+              overallCourseGrade: stats.overallCourseGrade,
+              overall: stats.overall,
+              section: 'CS-F24-M' as const,
+            };
+          }
+          return null;
+        } catch (error) {
+          console.error(`Error getting stats for ${student.roll_number}:`, error);
+          return null;
+        }
+      })
+    );
+
+    const afternoonStats = await Promise.all(
+      (afternoonStudents || []).map(async (student) => {
+        try {
+          const stats = await getStudentStats(student.roll_number, 'CS-F24-A');
+          if (stats.overall >= 0) {
+            return {
+              rollNumber: student.roll_number,
+              name: student.name,
+              overallLabGrade: stats.overallLabGrade,
+              overallCourseGrade: stats.overallCourseGrade,
+              overall: stats.overall,
+              section: 'CS-F24-A' as const,
+            };
+          }
+          return null;
+        } catch (error) {
+          console.error(`Error getting stats for ${student.roll_number}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filter out null values and sort by overall grade (descending)
+    const validMorningStats = morningStats
+      .filter(s => s !== null) as StudentRank[];
+    const validAfternoonStats = afternoonStats
+      .filter(s => s !== null) as StudentRank[];
+
+    validMorningStats.sort((a, b) => b.overall - a.overall);
+    validAfternoonStats.sort((a, b) => b.overall - a.overall);
+
+    // Assign ranks
+    validMorningStats.forEach((stat, index) => {
+      stat.rank = index + 1;
+    });
+    validAfternoonStats.forEach((stat, index) => {
+      stat.rank = index + 1;
+    });
+
+    // Return top N from each section
+    return {
+      morning: validMorningStats.slice(0, limit),
+      afternoon: validAfternoonStats.slice(0, limit),
+    };
+  } catch (error) {
+    console.error('Error getting top rankers:', error);
+    return { morning: [], afternoon: [] };
   }
 }
