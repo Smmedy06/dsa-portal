@@ -401,6 +401,16 @@ const AdminAssignments = () => {
               const solutionFiles = assignment.assignment_files?.filter(f => f.file_type === 'solution') || [];
               const instructionFiles = assignment.assignment_files?.filter(f => f.file_type === 'instructions') || [];
 
+              // Automatically determine status based on deadline
+              const isExpired = assignment.submission_deadline 
+                ? new Date(assignment.submission_deadline) < new Date() 
+                : false;
+              const effectiveStatus = isExpired ? 'closed' : assignment.status;
+              const statusConfig = effectiveStatus === 'active' 
+                ? { icon: Clock, label: "Active", className: "bg-info/20 text-secondary" }
+                : { icon: CheckCircle2, label: "Closed", className: "bg-success/20 text-foreground" };
+              const StatusIcon = statusConfig.icon;
+
               return (
                 <div
                   key={assignment.id}
@@ -416,21 +426,10 @@ const AdminAssignments = () => {
                         <h3 className="font-semibold text-foreground">Assignment {assignment.assignment_number}: {assignment.title}</h3>
                         <div className={cn(
                           "flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
-                          assignment.status === "active" 
-                            ? "bg-info/20 text-secondary" 
-                            : "bg-success/20 text-foreground"
+                          statusConfig.className
                         )}>
-                          {assignment.status === "active" ? (
-                            <>
-                              <Clock className="h-3 w-3" />
-                              Active
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="h-3 w-3" />
-                              Closed
-                            </>
-                          )}
+                          <StatusIcon className="h-3 w-3" />
+                          {statusConfig.label}
                         </div>
                       </div>
                       {assignment.description && (

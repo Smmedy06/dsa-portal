@@ -22,70 +22,105 @@ const AdminDashboard = () => {
     morning: [],
     afternoon: [],
   });
+  const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const fetchStats = async () => {
+    // Check cache first
+    const cacheKey = 'admin-dashboard-stats';
+    const cached = sessionStorage.getItem(cacheKey);
+
+    if (cached) {
       try {
-        setLoading(true);
-        const [students, labs, assignments, quizzes, rankers] = await Promise.all([
-          getAllStudents(),
-          getAllLabs(),
-          getAllAssignments(),
-          getAllQuizzes(),
-          getTopRankers(5),
-        ]);
-
-        if (!mounted) return;
-
-        setStats({
-          totalStudents: students.length,
-          labs: labs.length,
-          assignments: assignments.length,
-          quizzes: quizzes.length,
-        });
-
-        setTopRankers(rankers);
-      } catch (error: any) {
-        console.error('Error fetching stats:', error);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        // Load from cache immediately (no loading spinner)
+        const { stats: cachedStats, rankers: cachedRankers } = JSON.parse(cached);
+        setStats(cachedStats);
+        setTopRankers(cachedRankers);
+        setHasFetched(true);
+        setLoading(false);
+        
+        // Refresh in background (silently update cache)
+        fetchStats(true);
+      } catch (e) {
+        console.error('Error parsing cache:', e);
+        fetchStats(false);
       }
-    };
-
-    fetchStats();
+    } else {
+      fetchStats(false);
+    }
 
     return () => {
       mounted = false;
     };
   }, []);
 
+  const fetchStats = async (backgroundRefresh: boolean = false) => {
+    let mounted = true;
+
+    try {
+      // Only show loader if not a background refresh
+      if (!backgroundRefresh && !hasFetched) {
+        setLoading(true);
+      }
+
+      const [students, labs, assignments, quizzes, rankers] = await Promise.all([
+        getAllStudents(),
+        getAllLabs(),
+        getAllAssignments(),
+        getAllQuizzes(),
+        getTopRankers(5),
+      ]);
+
+      if (!mounted) return;
+
+      const newStats = {
+        totalStudents: students.length,
+        labs: labs.length,
+        assignments: assignments.length,
+        quizzes: quizzes.length,
+      };
+
+      setStats(newStats);
+      setTopRankers(rankers);
+      setHasFetched(true);
+
+      // Update cache with fresh data
+      const cacheKey = 'admin-dashboard-stats';
+      sessionStorage.setItem(cacheKey, JSON.stringify({ stats: newStats, rankers }));
+
+    } catch (error: any) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      if (mounted && !backgroundRefresh) {
+        setLoading(false);
+      }
+    }
+  };
+
   const adminStats = [
     {
       title: "Total Students",
       value: loading ? <Skeleton className="h-6 w-12" /> : stats.totalStudents.toString(),
-      subtitle: `${stats.totalStudents} enrolled`,
+      subtitle: undefined,
       icon: Users
     },
     {
       title: "Labs",
       value: loading ? <Skeleton className="h-6 w-12" /> : stats.labs.toString(),
-      subtitle: `${stats.labs} available`,
+      subtitle: undefined,
       icon: BookOpen
     },
     {
       title: "Assignments",
       value: loading ? <Skeleton className="h-6 w-12" /> : stats.assignments.toString(),
-      subtitle: `${stats.assignments} active`,
+      subtitle: undefined,
       icon: FileText
     },
     {
       title: "Quizzes",
       value: loading ? <Skeleton className="h-6 w-12" /> : stats.quizzes.toString(),
-      subtitle: `${stats.quizzes} created`,
+      subtitle: undefined,
       icon: HelpCircle
     },
   ];
@@ -164,8 +199,8 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-foreground">{student.overall}%</p>
-                      <p className="text-xs text-muted-foreground">Overall</p>
+                      <p className="font-semibold text-foreground">{student.overallLabGrade}%</p>
+                      <p className="text-xs text-muted-foreground">Lab Grade</p>
                     </div>
                   </div>
                 ))}
@@ -207,8 +242,8 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-foreground">{student.overall}%</p>
-                      <p className="text-xs text-muted-foreground">Overall</p>
+                      <p className="font-semibold text-foreground">{student.overallLabGrade}%</p>
+                      <p className="text-xs text-muted-foreground">Lab Grade</p>
                     </div>
                   </div>
                 ))}

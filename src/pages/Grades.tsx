@@ -107,7 +107,7 @@ const Grades = () => {
     if (profile?.roll_number) {
       fetchGrades();
     }
-  }, [profile]);
+  }, [profile?.roll_number, profile?.section]);
 
   const fetchGrades = async () => {
     if (!profile?.roll_number) return;
@@ -117,9 +117,8 @@ const Grades = () => {
       if (gradeData.tabs.length === 0) {
         setLoading(true);
       }
+      // Always fetch fresh data to ensure visibility changes are reflected
       const data = await getStudentGrades(profile.roll_number, profile.section as 'CS-F24-M' | 'CS-F24-A' | undefined);
-      setGradeData(data);
-      // Cache the fresh data
       setGradeData(data);
     } catch (error: any) {
       console.error('Error fetching grades:', error);

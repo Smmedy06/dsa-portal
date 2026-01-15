@@ -165,6 +165,7 @@ const AdminGrades = () => {
             });
 
             if (user) {
+              // Save config - this will update last_synced_at timestamp
               await saveGradeSheetConfig(
                 freshSheet.sheet_url,
                 freshSheet.sheet_id,
@@ -175,7 +176,7 @@ const AdminGrades = () => {
             }
           }
 
-          // Always fetch new config to ensure UI matches DB
+          // Always fetch new config to ensure UI matches DB (including updated timestamp)
           await fetchConfig();
         } catch (error: any) {
           console.error('Auto-sync error:', error);

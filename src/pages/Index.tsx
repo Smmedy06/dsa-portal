@@ -35,26 +35,53 @@ const Index = () => {
     }
   }, [isAdmin, profile, navigate]);
 
-  // Fetch data when profile loads (always fetch fresh data to ensure accuracy)
+  // Fetch data when profile loads (use cache with background refresh)
   useEffect(() => {
     if (profile?.roll_number && !isAdmin && !hasFetched) {
-      fetchDashboardData();
+      const cacheKey = `dashboard-stats-${profile.roll_number}`;
+      const cached = sessionStorage.getItem(cacheKey);
+
+      if (cached) {
+        try {
+          // Load from cache immediately (no loading spinner)
+          const { stats: cachedStats, deadlines: cachedDeadlines } = JSON.parse(cached);
+          setStats(cachedStats);
+          setCategoryData([
+            { name: "Labs", score: cachedStats.labs.score, total: cachedStats.labs.total },
+            { name: "Assignments", score: cachedStats.assignments.score, total: cachedStats.assignments.total },
+            { name: "Quizzes", score: cachedStats.quizzes.score, total: cachedStats.quizzes.total },
+            { name: "Exams", score: cachedStats.exams.score, total: cachedStats.exams.total },
+          ]);
+          setUpcomingDeadlines(cachedDeadlines);
+          setHasFetched(true);
+          setLoading(false);
+          
+          // Refresh in background (silently update cache)
+          fetchDashboardData(true);
+        } catch (e) {
+          console.error('Error parsing cache:', e);
+          fetchDashboardData(false);
+        }
+      } else {
+        fetchDashboardData(false);
+      }
     } else if (profile === null && !isAdmin) {
-      // Only set loading to false if profile is explicitly null (not loading)
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.roll_number, profile?.section, isAdmin, hasFetched]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (backgroundRefresh: boolean = false) => {
     if (!profile?.roll_number) {
       setLoading(false);
       return;
     }
 
     try {
-      // Only show loader if we didn't load from cache
-      if (!stats) setLoading(true);
+      // Only show loader if not a background refresh
+      if (!backgroundRefresh && !stats) {
+        setLoading(true);
+      }
 
       const [statsData, deadlines] = await Promise.all([
         getStudentStats(profile.roll_number, profile.section as 'CS-F24-M' | 'CS-F24-A' | undefined),
@@ -71,7 +98,9 @@ const Index = () => {
       setUpcomingDeadlines(deadlines);
       setHasFetched(true);
 
-      // Don't cache - always fetch fresh data to ensure accuracy
+      // Update cache with fresh data
+      const cacheKey = `dashboard-stats-${profile.roll_number}`;
+      sessionStorage.setItem(cacheKey, JSON.stringify({ stats: statsData, deadlines }));
 
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
@@ -83,7 +112,9 @@ const Index = () => {
         { name: "Exams", score: 0, total: 0 },
       ]);
     } finally {
-      setLoading(false);
+      if (!backgroundRefresh) {
+        setLoading(false);
+      }
     }
   };
 

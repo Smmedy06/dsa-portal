@@ -45,21 +45,21 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
   const gradeData = await getStudentGradeData(rollNumber);
   
   // Get grade sheet config to know which columns are visible
-  // CRITICAL: Prioritize the sheet_id from the actual data to ensure we apply the correct visibility rules
+  // CRITICAL: Always use section-based config to ensure correct visibility settings
+  // Using sheet_id alone can cause mismatches when same sheet is used for multiple sections
   let gradeSheetConfig = null;
   
-  if (gradeData.length > 0) {
-    const sheetId = gradeData[0].sheet_id;
-    gradeSheetConfig = await getGradeSheetConfigById(sheetId);
+  // Always prioritize section-based config (this matches how admin updates visibility)
+  if (section) {
+    gradeSheetConfig = await getGradeSheetConfig(section);
+  } else {
+    gradeSheetConfig = await getGradeSheetConfig('CS-F24-M');
   }
   
-  // Fallback to section only if we couldn't find config by ID (or no data)
-  if (!gradeSheetConfig) {
-    if (section) {
-      gradeSheetConfig = await getGradeSheetConfig(section);
-    } else {
-      gradeSheetConfig = await getGradeSheetConfig('CS-F24-M');
-    }
+  // If no section config found and we have grade data, try by sheet_id as last resort
+  if (!gradeSheetConfig && gradeData.length > 0) {
+    const sheetId = gradeData[0].sheet_id;
+    gradeSheetConfig = await getGradeSheetConfigById(sheetId);
   }
 
   const tabsMap = new Map<string, {
@@ -87,8 +87,13 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
     const tabNameLower = tabName.toLowerCase();
 
     // Get tab config from grade sheet
+    // CRITICAL: Match tab names exactly (case-insensitive, trimmed)
     const tabConfig = gradeSheetConfig?.tabs 
-      ? (gradeSheetConfig.tabs as any[]).find((t: any) => t.name.trim() === tabName.trim())
+      ? (gradeSheetConfig.tabs as any[]).find((t: any) => {
+          const configTabName = (t.name || '').trim().toLowerCase();
+          const dataTabName = tabName.trim().toLowerCase();
+          return configTabName === dataTabName;
+        })
       : null;
 
     // Check if tab is visible (default to true if no config)
@@ -118,10 +123,17 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
       ? tabConfig.visibleColumns 
       : Object.keys(tabData);
 
+    // Normalize visible columns for comparison (handles case/whitespace mismatches)
+    const normalizedVisibleColumns = new Set(
+      visibleColumns.map(col => (col || '').trim().toLowerCase())
+    );
+
     // Process each column in the tab data
     Object.keys(tabData).forEach((columnName) => {
-      // Skip if column is not visible
-      if (!visibleColumns.includes(columnName)) {
+      // Skip if column is not visible (case-insensitive, trimmed comparison)
+      // This handles cases where column names in config might have different casing/whitespace
+      const normalizedColumnName = (columnName || '').trim().toLowerCase();
+      if (!normalizedVisibleColumns.has(normalizedColumnName)) {
         return;
       }
 

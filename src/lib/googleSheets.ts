@@ -437,7 +437,12 @@ export async function updateTabVisibility(
     }
 
     const tabs = (sheet.tabs as any[]) || [];
-    const tabIndex = tabs.findIndex(t => t.name === tabName);
+    // Match tab name case-insensitively and trimmed
+    const tabIndex = tabs.findIndex(t => {
+      const configTabName = (t.name || '').trim().toLowerCase();
+      const searchTabName = tabName.trim().toLowerCase();
+      return configTabName === searchTabName;
+    });
     
     if (tabIndex === -1) {
       throw new Error(`Tab ${tabName} not found`);
@@ -548,7 +553,12 @@ export async function updateColumnVisibility(
     }
 
     const tabs = (sheet.tabs as any[]) || [];
-    const tabIndex = tabs.findIndex(t => t.name === tabName);
+    // Match tab name case-insensitively and trimmed
+    const tabIndex = tabs.findIndex(t => {
+      const configTabName = (t.name || '').trim().toLowerCase();
+      const searchTabName = tabName.trim().toLowerCase();
+      return configTabName === searchTabName;
+    });
     
     if (tabIndex === -1) {
       throw new Error(`Tab ${tabName} not found`);

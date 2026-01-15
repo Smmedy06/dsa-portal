@@ -41,9 +41,9 @@ export async function getStudentRank(
       students.map(async (student) => {
         try {
           const stats = await getStudentStats(student.roll_number, section);
-          // Include all students who have at least attempted something (overall >= 0)
+          // Include all students who have at least attempted labs (overallLabGrade >= 0)
           // We use >= 0 so even if they got 0, they are part of the class ranking
-          if (stats.overall >= 0) {
+          if (stats.overallLabGrade >= 0) {
             return {
               rollNumber: student.roll_number,
               name: student.name,
@@ -74,8 +74,8 @@ export async function getStudentRank(
       return null;
     }
 
-    // Sort by overall grade (descending)
-    validStats.sort((a, b) => b.overall - a.overall);
+    // Sort by overallLabGrade (lab marks only) - matching student dashboard
+    validStats.sort((a, b) => b.overallLabGrade - a.overallLabGrade);
 
     // Find rank (1-based) - only among students with grades
     const rank = validStats.findIndex(s => s.rollNumber === rollNumber) + 1;
@@ -119,7 +119,7 @@ export async function getTopRankers(limit: number = 5): Promise<{
       (morningStudents || []).map(async (student) => {
         try {
           const stats = await getStudentStats(student.roll_number, 'CS-F24-M');
-          if (stats.overall >= 0) {
+          if (stats.overallLabGrade >= 0) {
             return {
               rollNumber: student.roll_number,
               name: student.name,
@@ -141,7 +141,7 @@ export async function getTopRankers(limit: number = 5): Promise<{
       (afternoonStudents || []).map(async (student) => {
         try {
           const stats = await getStudentStats(student.roll_number, 'CS-F24-A');
-          if (stats.overall >= 0) {
+          if (stats.overallLabGrade >= 0) {
             return {
               rollNumber: student.roll_number,
               name: student.name,
@@ -159,14 +159,14 @@ export async function getTopRankers(limit: number = 5): Promise<{
       })
     );
 
-    // Filter out null values and sort by overall grade (descending)
+    // Filter out null values and sort by overallLabGrade (lab marks only) - matching student dashboard
     const validMorningStats = morningStats
       .filter(s => s !== null) as StudentRank[];
     const validAfternoonStats = afternoonStats
       .filter(s => s !== null) as StudentRank[];
 
-    validMorningStats.sort((a, b) => b.overall - a.overall);
-    validAfternoonStats.sort((a, b) => b.overall - a.overall);
+    validMorningStats.sort((a, b) => b.overallLabGrade - a.overallLabGrade);
+    validAfternoonStats.sort((a, b) => b.overallLabGrade - a.overallLabGrade);
 
     // Assign ranks
     validMorningStats.forEach((stat, index) => {
