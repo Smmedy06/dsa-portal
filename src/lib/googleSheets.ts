@@ -164,7 +164,10 @@ export async function saveGradeSheetConfig(
         .select()
         .single();
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error(`[saveGradeSheetConfig] Update error:`, updateError);
+        throw updateError;
+      }
       return updateResult;
     } else {
       // Insert new
@@ -183,7 +186,10 @@ export async function saveGradeSheetConfig(
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error(`[saveGradeSheetConfig] Insert error:`, insertError);
+        throw insertError;
+      }
       return insertResult;
     }
   } catch (error: any) {
@@ -238,14 +244,31 @@ export async function setAutoSyncEnabled(
  */
 export async function getGradeSheetConfig(section: 'CS-F24-M' | 'CS-F24-A'): Promise<GradeSheet | null> {
   try {
-    // First try with section filter
-    let query = supabase
+    // First try with section filter - this is the primary method
+    let { data, error } = await supabase
       .from('grade_sheets')
       .select('*')
       .eq('section', section)
       .maybeSingle();
 
-    const { data, error } = await query;
+    // If no data found with section filter, try to find any config for this section
+    // by checking all records and filtering by section (in case of data inconsistency)
+    if (!data && error?.code === 'PGRST116') {
+      // Get all grade sheets and filter by section in memory
+      const { data: allSheets, error: allError } = await supabase
+        .from('grade_sheets')
+        .select('*')
+        .order('updated_at', { ascending: false });
+      
+      if (!allError && allSheets) {
+        // Find the one matching this section
+        const matchingSheet = allSheets.find((sheet: any) => sheet.section === section);
+        if (matchingSheet) {
+          data = matchingSheet;
+          error = null;
+        }
+      }
+    }
 
     if (error) {
       // If column doesn't exist (migration not run), try without section filter
@@ -263,17 +286,27 @@ export async function getGradeSheetConfig(section: 'CS-F24-M' | 'CS-F24-A'): Pro
           .maybeSingle();
         
         if (fallbackError) {
-          if (fallbackError.code === 'PGRST116') return null; // No rows found
+          if (fallbackError.code === 'PGRST116') {
+            return null; // No rows found
+          }
           console.error('Fallback query error:', fallbackError);
           return null; // Return null instead of throwing
         }
         return fallbackData;
       }
       
-      if (error.code === 'PGRST116') return null; // No rows
+      if (error.code === 'PGRST116') {
+        // No rows found for this section - this is normal if not configured yet
+        return null;
+      }
       
       // For other errors, log and return null instead of throwing
       console.error('Error fetching grade sheet config:', error);
+      return null;
+    }
+    
+    // If data is null (no rows found), return null
+    if (!data) {
       return null;
     }
     

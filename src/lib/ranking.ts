@@ -42,8 +42,9 @@ export async function getStudentRank(
         try {
           const stats = await getStudentStats(student.roll_number, section);
           // Include all students who have at least attempted labs (overallLabGrade >= 0)
-          // We use >= 0 so even if they got 0, they are part of the class ranking
-          if (stats.overallLabGrade >= 0) {
+          // We use >= 0 so even if they got 0%, they are part of the class ranking
+          // Include students with at least 1 lab (removed the >= 2 requirement)
+          if (stats.overallLabGrade >= 0 && stats.labs.count >= 1) {
             return {
               rollNumber: student.roll_number,
               name: student.name,
@@ -119,7 +120,9 @@ export async function getTopRankers(limit: number = 5): Promise<{
       (morningStudents || []).map(async (student) => {
         try {
           const stats = await getStudentStats(student.roll_number, 'CS-F24-M');
-          if (stats.overallLabGrade >= 0) {
+          // Include all students who have at least attempted labs (overallLabGrade >= 0)
+          // Include students with at least 1 lab (removed the >= 2 requirement)
+          if (stats.overallLabGrade >= 0 && stats.labs.count >= 1) {
             return {
               rollNumber: student.roll_number,
               name: student.name,
@@ -141,7 +144,9 @@ export async function getTopRankers(limit: number = 5): Promise<{
       (afternoonStudents || []).map(async (student) => {
         try {
           const stats = await getStudentStats(student.roll_number, 'CS-F24-A');
-          if (stats.overallLabGrade >= 0) {
+          // Include all students who have at least attempted labs (overallLabGrade >= 0)
+          // Include students with at least 1 lab (removed the >= 2 requirement)
+          if (stats.overallLabGrade >= 0 && stats.labs.count >= 1) {
             return {
               rollNumber: student.roll_number,
               name: student.name,

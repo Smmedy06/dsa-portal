@@ -46,6 +46,7 @@ const AdminGrades = () => {
   const fetchConfig = useCallback(async () => {
     try {
       setLoading(true);
+      // Force a fresh fetch by clearing any cached state
       const config = await getGradeSheetConfig(selectedSection);
 
       if (config) {
@@ -55,12 +56,13 @@ const AdminGrades = () => {
         const autoSync = await getAutoSyncEnabled(selectedSection);
         setAutoSyncEnabled(autoSync);
       } else {
+        // Explicitly clear state when no config found for this section
         setGradeSheet(null);
         setSheetUrl("");
         setAutoSyncEnabled(false);
       }
     } catch (error: any) {
-      console.error('Error fetching grade sheet config:', error);
+      console.error(`[AdminGrades] Error fetching grade sheet config for ${selectedSection}:`, error);
       setGradeSheet(null);
       setSheetUrl("");
       setAutoSyncEnabled(false);
@@ -78,8 +80,14 @@ const AdminGrades = () => {
   }, [selectedSection, toast]);
 
   useEffect(() => {
+    // Reset state when section changes to prevent stale data
+    setGradeSheet(null);
+    setSheetUrl("");
+    setAutoSyncEnabled(false);
+    // Fetch config for the new section
     fetchConfig();
-  }, [fetchConfig]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSection]); // Only depend on selectedSection - fetchConfig will be recreated when it changes
 
   // Keep a ref to the latest gradeSheet to avoid stale closures in the interval
   const gradeSheetRef = useRef(gradeSheet);
@@ -110,7 +118,6 @@ const AdminGrades = () => {
       
       // Prevent concurrent syncs using ref (more reliable than state)
       if (syncingRef.current) {
-        console.log('Sync already in progress, skipping...');
         return;
       }
 
@@ -332,7 +339,9 @@ const AdminGrades = () => {
         description: `Synced ${result.tabsSynced} tabs and ${result.studentsSynced} students. Tabs and columns detected automatically.`,
       });
 
-      // Refresh config to get updated tabs
+      // CRITICAL: Wait a brief moment to ensure database write is committed
+      // Then refresh config to get updated tabs
+      await new Promise(resolve => setTimeout(resolve, 500));
       await fetchConfig();
     } catch (error: any) {
       toast({

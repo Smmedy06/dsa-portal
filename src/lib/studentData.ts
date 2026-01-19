@@ -158,12 +158,33 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
       }
 
       const value = tabData[columnName];
-      const score = parseFloat(value);
       
-      // Skip if not a valid number or empty
-      if (isNaN(score) || value === '' || value === null || value === undefined) {
+      // Handle 0 explicitly - 0 is a valid score and should be included in calculations
+      // Check if value is null, undefined, or empty string first (these should be skipped)
+      if (value === null || value === undefined || value === '') {
         return;
       }
+      
+      // Explicitly check for 0 (both number and string) - 0 is valid and should be processed
+      const isZero = value === 0 || value === '0';
+      
+      // Convert to number - handle both string "0" and number 0
+      let score: number;
+      if (typeof value === 'number') {
+        score = value;
+      } else {
+        score = parseFloat(String(value));
+      }
+      
+      // Skip if not a valid number (but explicitly allow 0)
+      // isNaN(0) = false, so 0 will pass this check
+      if (!isZero && isNaN(score)) {
+        return;
+      }
+      
+      // Ensure we have a valid number (including 0)
+      // If it's explicitly 0 or "0", use 0; otherwise use the parsed score
+      const finalScore = isZero ? 0 : (isNaN(score) ? 0 : score);
 
       // Parse max marks from column name (e.g., "Lab 01 (30)" -> 30)
       const maxMarks = parseMaxMarks(columnName);
@@ -185,9 +206,9 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
         }
       }
       
-      // For penalty/bonalty columns (including Extra tab), treat as single value (no division)
+      // For penalty/bonus columns (including Extra tab), treat as single value (no division)
       // For regular columns, use parsed marks or default to 20
-      const finalMaxMarks = isPenaltyOrBonus && !maxMarks ? score : (maxMarks || 20);
+      const finalMaxMarks = isPenaltyOrBonus && !maxMarks ? finalScore : (maxMarks || 20);
       const cleanName = getCleanColumnName(columnName);
 
       // Add to tab items
@@ -195,8 +216,8 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
       tab.items.push({
         id: `${tabName}-${columnName}`,
         title: cleanName,
-        score: score,
-        total: isPenaltyOrBonus && !maxMarks ? score : finalMaxMarks, // For bonuses/penalties, total = score
+        score: finalScore, // Use finalScore which explicitly handles 0
+        total: isPenaltyOrBonus && !maxMarks ? finalScore : finalMaxMarks, // For bonuses/penalties, total = score
         columnName: columnName,
         isBonusOrPenalty: isPenaltyOrBonus || tabIsExtra, // Flag to indicate this is a bonus/penalty (including Extra tab)
       });
@@ -205,8 +226,8 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
       const legacyItem = {
         id: `${tabName}-${columnName}`,
         title: cleanName,
-        score: score,
-        total: isPenaltyOrBonus && !maxMarks ? score : finalMaxMarks,
+        score: finalScore, // Use finalScore which explicitly handles 0
+        total: isPenaltyOrBonus && !maxMarks ? finalScore : finalMaxMarks,
         date: tabData.date || null,
         isBonusOrPenalty: isPenaltyOrBonus || tabIsExtra,
       };
@@ -268,20 +289,23 @@ export async function getStudentStats(rollNumber: string, section?: 'CS-F24-M' |
   const quizzesItems = grades.quizzes.filter(q => !q.isBonusOrPenalty);
   const examsItems = grades.exams.filter(e => !e.isBonusOrPenalty);
   
-  const labsTotal = labsItems.reduce((acc, l) => acc + (l.score || 0), 0);
-  const labsMax = labsItems.reduce((acc, l) => acc + (l.total || 0), 0);
+  // Calculate totals - explicitly handle 0 values (0 is a valid score)
+  // Use nullish coalescing to only default to 0 if score/total is null/undefined, not if it's 0
+  const labsTotal = labsItems.reduce((acc, l) => acc + (l.score ?? 0), 0);
+  const labsMax = labsItems.reduce((acc, l) => acc + (l.total ?? 0), 0);
   const labsCount = labsItems.length;
   
-  const assignmentsTotal = assignmentsItems.reduce((acc, a) => acc + (a.score || 0), 0);
-  const assignmentsMax = assignmentsItems.reduce((acc, a) => acc + (a.total || 0), 0);
+  // Calculate totals - explicitly handle 0 values (0 is a valid score)
+  const assignmentsTotal = assignmentsItems.reduce((acc, a) => acc + (a.score ?? 0), 0);
+  const assignmentsMax = assignmentsItems.reduce((acc, a) => acc + (a.total ?? 0), 0);
   const assignmentsCount = assignmentsItems.length;
   
-  const quizzesTotal = quizzesItems.reduce((acc, q) => acc + (q.score || 0), 0);
-  const quizzesMax = quizzesItems.reduce((acc, q) => acc + (q.total || 0), 0);
+  const quizzesTotal = quizzesItems.reduce((acc, q) => acc + (q.score ?? 0), 0);
+  const quizzesMax = quizzesItems.reduce((acc, q) => acc + (q.total ?? 0), 0);
   const quizzesCount = quizzesItems.length;
   
-  const examsTotal = examsItems.reduce((acc, e) => acc + (e.score || 0), 0);
-  const examsMax = examsItems.reduce((acc, e) => acc + (e.total || 0), 0);
+  const examsTotal = examsItems.reduce((acc, e) => acc + (e.score ?? 0), 0);
+  const examsMax = examsItems.reduce((acc, e) => acc + (e.total ?? 0), 0);
   const examsCount = examsItems.length;
 
   // Lab grade (separate)

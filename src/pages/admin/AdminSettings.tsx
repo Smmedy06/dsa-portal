@@ -218,7 +218,7 @@ const AdminSettings = () => {
 
   return (
     <AdminLayout>
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6">
         {/* Header */}
         <div className="animate-fade-in">
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">Admin Settings</h1>
@@ -247,7 +247,7 @@ const AdminSettings = () => {
                 readOnly
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="semester">Semester</Label>
                 <Input id="semester" defaultValue="Fall 2024" className="rounded-xl" readOnly />
@@ -314,7 +314,7 @@ const AdminSettings = () => {
           </div>
 
           <div className="space-y-4">
-            <form onSubmit={handleAddAdmin} className="flex gap-3">
+            <form onSubmit={handleAddAdmin} className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Label htmlFor="adminEmail" className="sr-only">Email</Label>
                 <Input
