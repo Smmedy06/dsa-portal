@@ -6,6 +6,7 @@ import StatCard from "@/components/dashboard/StatCard";
 import { getAllStudents } from "@/lib/students";
 import { getAllLabs, getAllAssignments, getAllQuizzes } from "@/lib/content";
 import { getTopRankers, type StudentRank } from "@/lib/ranking";
+import { preloadAllRanks } from "@/lib/rankingCache";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -26,6 +27,12 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     let mounted = true;
+
+    // Pre-calculate and cache ranks for all sections in background
+    // This makes student detail modal load instantly
+    preloadAllRanks().catch(error => {
+      console.error('Error preloading ranks:', error);
+    });
 
     // Check cache first
     const cacheKey = 'admin-dashboard-stats';

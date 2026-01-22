@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Upload, Download, UserPlus, MoreHorizontal, Mail, X, Filter } from "lucide-react";
+import { Search, Upload, Download, UserPlus, MoreHorizontal, Mail, X, Filter, Eye } from "lucide-react";
 import AdminLayout from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,8 @@ import {
   downloadCSV,
   type EnrolledStudent,
 } from "@/lib/students";
+import { preloadAllRanks } from "@/lib/rankingCache";
+import StudentDetailDialog from "@/components/admin/StudentDetailDialog";
 
 const AdminStudents = () => {
   const [students, setStudents] = useState<EnrolledStudent[]>([]);
@@ -62,6 +64,8 @@ const AdminStudents = () => {
     section: "CS-F24-M" as "CS-F24-M" | "CS-F24-A",
     email: "",
   });
+  const [selectedStudent, setSelectedStudent] = useState<EnrolledStudent | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const { toast } = useToast();
 
   // Fetch students
@@ -91,6 +95,11 @@ const AdminStudents = () => {
 
   useEffect(() => {
     fetchStudents();
+    // Pre-calculate and cache ranks for all sections in background
+    // This makes the modal load instantly when clicked
+    preloadAllRanks().catch(error => {
+      console.error('Error preloading ranks:', error);
+    });
   }, [sectionFilter]);
 
   // Filter students by search query
@@ -397,7 +406,14 @@ const AdminStudents = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredStudents.map((student) => (
-                    <TableRow key={student.id} className="hover:bg-muted/30">
+                    <TableRow 
+                      key={student.id} 
+                      className="hover:bg-muted/30 cursor-pointer"
+                      onClick={() => {
+                        setSelectedStudent(student);
+                        setIsDetailDialogOpen(true);
+                      }}
+                    >
                       <TableCell className="font-mono text-sm whitespace-nowrap">{student.roll_number}</TableCell>
                       <TableCell className="font-medium whitespace-nowrap">{student.name}</TableCell>
                       <TableCell className="text-muted-foreground whitespace-nowrap">
@@ -408,7 +424,7 @@ const AdminStudents = () => {
                           {student.section}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="rounded-lg">
@@ -416,6 +432,16 @@ const AdminStudents = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="rounded-xl">
+                            <DropdownMenuItem 
+                              className="rounded-lg"
+                              onClick={() => {
+                                setSelectedStudent(student);
+                                setIsDetailDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="rounded-lg">
                               <Mail className="h-4 w-4 mr-2" />
                               Send Email
@@ -461,7 +487,14 @@ const AdminStudents = () => {
             </div>
           ) : (
             filteredStudents.map((student) => (
-              <div key={student.id} className="bg-card rounded-2xl border border-border p-4">
+              <div 
+                key={student.id} 
+                className="bg-card rounded-2xl border border-border p-4 cursor-pointer hover:shadow-soft transition-all"
+                onClick={() => {
+                  setSelectedStudent(student);
+                  setIsDetailDialogOpen(true);
+                }}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-2">
@@ -473,27 +506,39 @@ const AdminStudents = () => {
                     <p className="font-medium text-foreground mb-1">{student.name}</p>
                     <p className="text-sm text-muted-foreground truncate">{student.email}</p>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="rounded-lg flex-shrink-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-xl">
-                      <DropdownMenuItem className="rounded-lg">
-                        <Mail className="h-4 w-4 mr-2" />
-                        Send Email
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        className="rounded-lg text-destructive"
-                        onClick={() => handleRemoveStudent(student.roll_number, student.name)}
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        Remove Student
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="rounded-lg flex-shrink-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="rounded-xl">
+                        <DropdownMenuItem 
+                          className="rounded-lg"
+                          onClick={() => {
+                            setSelectedStudent(student);
+                            setIsDetailDialogOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-lg">
+                          <Mail className="h-4 w-4 mr-2" />
+                          Send Email
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="rounded-lg text-destructive"
+                          onClick={() => handleRemoveStudent(student.roll_number, student.name)}
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Remove Student
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </div>
             ))
@@ -510,6 +555,13 @@ const AdminStudents = () => {
             </div>
           </div>
         )}
+
+        {/* Student Detail Dialog */}
+        <StudentDetailDialog
+          student={selectedStudent}
+          open={isDetailDialogOpen}
+          onOpenChange={setIsDetailDialogOpen}
+        />
       </div>
     </AdminLayout>
   );

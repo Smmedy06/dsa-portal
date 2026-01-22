@@ -36,8 +36,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (userError) throw userError;
 
-      // Fetch enrolled student details to get section
+      // Check if user is in admins table and sync admin status
       if (userProfile?.email) {
+        const { data: adminData } = await supabase
+          .from('admins')
+          .select('*')
+          .eq('email', userProfile.email.toLowerCase())
+          .eq('is_active', true)
+          .maybeSingle();
+
+        // If user is in admins table but is_admin is false in users table, sync it
+        if (adminData && !userProfile.is_admin) {
+          await supabase
+            .from('users')
+            .update({ is_admin: true })
+            .eq('id', userId);
+          userProfile.is_admin = true;
+        }
+
+        // Fetch enrolled student details to get section
         const { data: studentData } = await supabase
           .from('enrolled_students')
           .select('section, roll_number')

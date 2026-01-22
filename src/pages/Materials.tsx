@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 import { getAllLabs, getAllAssignments, getAllQuizzes, isSolutionVisible, type Lab, type Assignment, type Quiz } from "@/lib/content";
 import { downloadFile } from "@/lib/storage";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { isEmailEnrolled } from "@/lib/auth";
+import NotEnrolledMessage from "@/components/NotEnrolledMessage";
 
 const LabCard = ({ lab }: { lab: Lab }) => {
   const problemFiles = lab.lab_files?.filter(f => f.file_type === 'problem') || [];
@@ -272,6 +275,28 @@ const QuizCard = ({ quiz }: { quiz: Quiz }) => {
 };
 
 const Materials = () => {
+  const { profile, isAdmin } = useAuth();
+  const [isEnrolled, setIsEnrolled] = useState<boolean | null>(null);
+
+  // Check if user is enrolled
+  useEffect(() => {
+    if (profile?.email && !isAdmin) {
+      isEmailEnrolled(profile.email).then(enrolled => {
+        setIsEnrolled(enrolled);
+      });
+    } else if (isAdmin) {
+      setIsEnrolled(true); // Admins are always considered "enrolled"
+    }
+  }, [profile?.email, isAdmin]);
+
+  // Show not enrolled message if user is not enrolled
+  if (isEnrolled === false) {
+    return (
+      <AppLayout>
+        <NotEnrolledMessage />
+      </AppLayout>
+    );
+  }
   const location = useLocation();
   const navigate = useNavigate();
   const [labs, setLabs] = useState<Lab[]>([]);
@@ -376,7 +401,15 @@ const Materials = () => {
     }
   };
 
-  if (loading) {
+  if (isEnrolled === false) {
+    return (
+      <AppLayout>
+        <NotEnrolledMessage />
+      </AppLayout>
+    );
+  }
+
+  if (loading || isEnrolled === null) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">

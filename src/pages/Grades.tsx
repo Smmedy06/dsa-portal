@@ -5,6 +5,8 @@ import GradeDonutChart from "@/components/dashboard/GradeDonutChart";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStudentGrades } from "@/lib/studentData";
 import { getLetterGrade } from "@/lib/grading";
+import { isEmailEnrolled } from "@/lib/auth";
+import NotEnrolledMessage from "@/components/NotEnrolledMessage";
 
 const GradeCard = ({ item }: { item: any }) => {
   // For bonus/penalty columns, show as single value (no percentage)
@@ -76,8 +78,20 @@ const CategorySummary = ({
 };
 
 const Grades = () => {
-  const { profile } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [isEnrolled, setIsEnrolled] = useState<boolean | null>(null);
+
+  // Check if user is enrolled
+  useEffect(() => {
+    if (profile?.email && !isAdmin) {
+      isEmailEnrolled(profile.email).then(enrolled => {
+        setIsEnrolled(enrolled);
+      });
+    } else if (isAdmin) {
+      setIsEnrolled(true); // Admins are always considered "enrolled"
+    }
+  }, [profile?.email, isAdmin]);
   const [gradeData, setGradeData] = useState<{
     tabs: Array<{
       name: string;
@@ -185,7 +199,16 @@ const Grades = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, visibleTabs.length]);
 
-  if (loading && gradeData.tabs.length === 0) {
+  // Show not enrolled message if user is not enrolled
+  if (isEnrolled === false) {
+    return (
+      <AppLayout>
+        <NotEnrolledMessage />
+      </AppLayout>
+    );
+  }
+
+  if ((loading && gradeData.tabs.length === 0) || isEnrolled === null) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">

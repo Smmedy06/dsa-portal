@@ -56,7 +56,11 @@ const StatCard = ({
         </div>
 
         {/* Value */}
-        <p className="text-2xl sm:text-3xl font-bold tracking-tight mb-1 truncate">{value}</p>
+        {typeof value === 'string' || typeof value === 'number' ? (
+          <p className="text-2xl sm:text-3xl font-bold tracking-tight mb-1 truncate">{value}</p>
+        ) : (
+          <div className="text-2xl sm:text-3xl font-bold tracking-tight mb-1 truncate">{value}</div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center gap-2">

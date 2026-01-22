@@ -8,13 +8,27 @@ import { getStudentStats } from "@/lib/studentData";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { getStudentRank } from "@/lib/ranking";
+import { isEmailEnrolled } from "@/lib/auth";
+import NotEnrolledMessage from "@/components/NotEnrolledMessage";
 
 const Profile = () => {
-  const { profile, signOut, user } = useAuth();
+  const { profile, signOut, user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [overallGrade, setOverallGrade] = useState(0);
   const [rank, setRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isEnrolled, setIsEnrolled] = useState<boolean | null>(null);
+
+  // Check if user is enrolled
+  useEffect(() => {
+    if (profile?.email && !isAdmin) {
+      isEmailEnrolled(profile.email).then(enrolled => {
+        setIsEnrolled(enrolled);
+      });
+    } else if (isAdmin) {
+      setIsEnrolled(true); // Admins are always considered "enrolled"
+    }
+  }, [profile?.email, isAdmin]);
 
   useEffect(() => {
     if (profile?.roll_number) {
@@ -25,6 +39,15 @@ const Profile = () => {
       setLoading(false);
     }
   }, [profile?.roll_number, profile?.section]);
+
+  // Show not enrolled message if user is not enrolled
+  if (isEnrolled === false) {
+    return (
+      <AppLayout>
+        <NotEnrolledMessage />
+      </AppLayout>
+    );
+  }
 
   const fetchData = async () => {
     if (!profile?.roll_number) {

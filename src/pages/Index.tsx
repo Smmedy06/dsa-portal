@@ -9,7 +9,9 @@ import UpcomingDeadlines from "@/components/dashboard/UpcomingDeadlines";
 import { useAuth } from "@/contexts/AuthContext";
 import { getStudentStats, getUpcomingDeadlines } from "@/lib/studentData";
 import { getLetterGrade } from "@/lib/grading";
+import { isEmailEnrolled } from "@/lib/auth";
 import { Skeleton } from "@/components/ui/skeleton";
+import NotEnrolledMessage from "@/components/NotEnrolledMessage";
 
 const Index = () => {
   const { profile, isAdmin } = useAuth();
@@ -27,6 +29,7 @@ const Index = () => {
   const [categoryData, setCategoryData] = useState<any[]>([]);
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<any[]>([]);
   const [hasFetched, setHasFetched] = useState(false); // Track if data has been fetched
+  const [isEnrolled, setIsEnrolled] = useState<boolean | null>(null); // null = checking, true = enrolled, false = not enrolled
 
   // Redirect admin
   useEffect(() => {
@@ -34,6 +37,17 @@ const Index = () => {
       navigate('/admin', { replace: true });
     }
   }, [isAdmin, profile, navigate]);
+
+  // Check if user is enrolled
+  useEffect(() => {
+    if (profile?.email && !isAdmin) {
+      isEmailEnrolled(profile.email).then(enrolled => {
+        setIsEnrolled(enrolled);
+      });
+    } else if (isAdmin) {
+      setIsEnrolled(true); // Admins are always considered "enrolled"
+    }
+  }, [profile?.email, isAdmin]);
 
   // Fetch data when profile loads (use cache with background refresh)
   useEffect(() => {
@@ -123,7 +137,16 @@ const Index = () => {
   const assignmentsSubmitted = stats?.assignments.count || 0;
   const quizzesTaken = stats?.quizzes.count || 0;
 
-  if (loading) {
+  // Show not enrolled message if user is not enrolled
+  if (isEnrolled === false) {
+    return (
+      <AppLayout>
+        <NotEnrolledMessage />
+      </AppLayout>
+    );
+  }
+
+  if (loading || isEnrolled === null) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">

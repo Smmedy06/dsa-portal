@@ -38,30 +38,52 @@ const AuthCallback = () => {
 
         // Update user profile with roll number if not set
         const rollNumber = extractRollNumber(email);
-        if (rollNumber) {
-          const { error: updateError } = await supabase
-            .from('users')
-            .update({
-              roll_number: rollNumber,
-              email: email.toLowerCase(),
-              last_login: new Date().toISOString(),
-            })
-            .eq('id', session.user.id);
+        
+        // Check if user is in admins table and sync to users table
+        const { data: adminData } = await supabase
+          .from('admins')
+          .select('*')
+          .eq('email', email.toLowerCase())
+          .eq('is_active', true)
+          .maybeSingle();
 
-          if (updateError) {
-            console.error('Error updating user:', updateError);
-          }
+        const isAdminFromAdminsTable = !!adminData;
+
+        // Update user record
+        const updateData: any = {
+          email: email.toLowerCase(),
+          last_login: new Date().toISOString(),
+        };
+
+        if (rollNumber) {
+          updateData.roll_number = rollNumber;
         }
 
-        // Check if user is admin
+        // Sync admin status from admins table to users table
+        if (isAdminFromAdminsTable) {
+          updateData.is_admin = true;
+        }
+
+        const { error: updateError } = await supabase
+          .from('users')
+          .update(updateData)
+          .eq('id', session.user.id);
+
+        if (updateError) {
+          console.error('Error updating user:', updateError);
+        }
+
+        // Check if user is admin (from users table or admins table)
         const { data: userData } = await supabase
           .from('users')
           .select('is_admin')
           .eq('id', session.user.id)
           .single();
 
+        const isAdmin = userData?.is_admin || isAdminFromAdminsTable;
+
         // Redirect based on role
-        if (userData?.is_admin) {
+        if (isAdmin) {
           navigate('/admin');
         } else {
           navigate('/');
