@@ -37,14 +37,14 @@ const ContactCard = ({
                     href={`mailto:${email}`}
                     className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors group"
                 >
-                    <div className="h-10 w-10 rounded-full bg-background flex items-center justify-center border border-border group-hover:border-primary/50 transition-colors">
+                    <div className="h-10 w-10 flex-shrink-0 rounded-full bg-background flex items-center justify-center border border-border group-hover:border-primary/50 transition-colors">
                         <Mail className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                         <p className="text-xs text-muted-foreground">Email</p>
-                        <p className="font-medium text-sm text-foreground">{email}</p>
+                        <p className="font-medium text-sm text-foreground truncate">{email}</p>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground" />
+                    <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
                 </a>
 
                 {phone && (
@@ -54,14 +54,14 @@ const ContactCard = ({
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors group"
                     >
-                        <div className="h-10 w-10 rounded-full bg-background flex items-center justify-center border border-border group-hover:border-green-500/50 transition-colors">
+                        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-background flex items-center justify-center border border-border group-hover:border-green-500/50 transition-colors">
                             <Phone className="h-5 w-5 text-muted-foreground group-hover:text-green-500 transition-colors" />
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                             <p className="text-xs text-muted-foreground">WhatsApp</p>
-                            <p className="font-medium text-sm text-foreground">{phone}</p>
+                            <p className="font-medium text-sm text-foreground truncate">{phone}</p>
                         </div>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground" />
+                        <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
                     </a>
                 )}
             </div>
