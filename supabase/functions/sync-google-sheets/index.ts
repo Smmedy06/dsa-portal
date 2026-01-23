@@ -385,7 +385,17 @@ Deno.serve(async (req) => {
         const rawData = await fetchTabData(sheetId, tabName, accessToken)
         
         if (rawData.length === 0) {
-          console.log(`Tab ${tabName} is empty, skipping`)
+          console.log(`Tab ${tabName} is empty, deleting all existing data for this tab`)
+          // If tab is empty, delete all existing data for this tab
+          const { error: deleteError } = await supabase
+            .from('grade_data')
+            .delete()
+            .eq('sheet_id', sheetId)
+            .eq('tab_name', tabName)
+          
+          if (deleteError) {
+            console.error(`Error deleting empty tab data for ${tabName}:`, deleteError)
+          }
           continue
         }
 
@@ -400,12 +410,17 @@ Deno.serve(async (req) => {
           rollNumberColumn: rollNumberColumn,
         })
 
+        // Collect all roll numbers that exist in the current sheet
+        const rollNumbersInSheet = new Set<string>()
+        
         // Cache data for each student
         for (const row of rows) {
           if (row.length <= rollNumberColumnIndex) continue
           
           const rollNumber = String(row[rollNumberColumnIndex] || '').trim().toLowerCase()
           if (!rollNumber) continue
+
+          rollNumbersInSheet.add(rollNumber)
 
           // Create data object with all columns
           const studentData: Record<string, any> = {}
@@ -432,6 +447,59 @@ Deno.serve(async (req) => {
             console.error(`Error caching data for ${rollNumber} in ${tabName}:`, error)
           } else {
             totalStudentsSynced++
+          }
+        }
+
+        // CRITICAL: Delete grade_data entries for this tab that are NOT in the current sheet
+        // This ensures the database exactly matches the sheet (removes deleted rows)
+        if (rollNumbersInSheet.size > 0) {
+          // Get all existing roll numbers for this tab/sheet
+          const { data: existingData, error: fetchError } = await supabase
+            .from('grade_data')
+            .select('roll_number')
+            .eq('sheet_id', sheetId)
+            .eq('tab_name', tabName)
+          
+          if (!fetchError && existingData) {
+            // Find roll numbers that exist in DB but not in current sheet
+            const rollNumbersToDelete = existingData
+              .map(item => item.roll_number)
+              .filter(rollNum => {
+                const rollNumLower = String(rollNum || '').toLowerCase().trim()
+                return rollNumLower && !rollNumbersInSheet.has(rollNumLower)
+              })
+            
+            // Delete orphaned entries
+            if (rollNumbersToDelete.length > 0) {
+              console.log(`Deleting ${rollNumbersToDelete.length} removed rows from ${tabName}`)
+              const { error: deleteError } = await supabase
+                .from('grade_data')
+                .delete()
+                .eq('sheet_id', sheetId)
+                .eq('tab_name', tabName)
+                .in('roll_number', rollNumbersToDelete)
+              
+              if (deleteError) {
+                console.error(`Error deleting removed rows from ${tabName}:`, deleteError)
+              } else {
+                console.log(`Successfully deleted ${rollNumbersToDelete.length} removed rows from ${tabName}`)
+              }
+            }
+          }
+        } else {
+          // If no valid roll numbers in sheet, delete all data for this tab
+          // This handles the case where a tab has rows but all roll numbers are empty/invalid
+          console.log(`No valid roll numbers in ${tabName}, deleting all existing data for this tab`)
+          const { error: deleteError } = await supabase
+            .from('grade_data')
+            .delete()
+            .eq('sheet_id', sheetId)
+            .eq('tab_name', tabName)
+          
+          if (deleteError) {
+            console.error(`Error deleting all data for ${tabName}:`, deleteError)
+          } else {
+            console.log(`Successfully deleted all data for empty tab ${tabName}`)
           }
         }
 

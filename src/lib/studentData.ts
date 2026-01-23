@@ -50,16 +50,35 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
   let gradeSheetConfig = null;
   
   // Always prioritize section-based config (this matches how admin updates visibility)
-  if (section) {
-    gradeSheetConfig = await getGradeSheetConfig(section);
-  } else {
-    gradeSheetConfig = await getGradeSheetConfig('CS-F24-M');
-  }
+  // This is CRITICAL - visibility settings are section-specific
+  const targetSection = section || 'CS-F24-M';
+  gradeSheetConfig = await getGradeSheetConfig(targetSection);
   
-  // If no section config found and we have grade data, try by sheet_id as last resort
+  // If no section config found and we have grade data, try by sheet_id but verify section match
+  // This is a fallback only - section-based lookup should always be used
   if (!gradeSheetConfig && gradeData.length > 0) {
     const sheetId = gradeData[0].sheet_id;
-    gradeSheetConfig = await getGradeSheetConfigById(sheetId);
+    const fallbackConfig = await getGradeSheetConfigById(sheetId);
+    
+    // Only use fallback if it matches the target section (safety check)
+    if (fallbackConfig && (fallbackConfig as any).section === targetSection) {
+      gradeSheetConfig = fallbackConfig;
+    } else if (fallbackConfig) {
+      // Config found but section doesn't match - this is a problem
+      console.warn(
+        `Grade sheet config found for sheet ${sheetId} but section mismatch. ` +
+        `Expected: ${targetSection}, Found: ${(fallbackConfig as any).section}. ` +
+        `Visibility settings may not apply correctly.`
+      );
+    }
+  }
+  
+  // Warn if no config found at all - visibility settings won't work
+  if (!gradeSheetConfig) {
+    console.warn(
+      `No grade sheet config found for section ${targetSection} and roll number ${rollNumber}. ` +
+      `All columns will be shown. Please configure the grade sheet in admin panel.`
+    );
   }
 
   const tabsMap = new Map<string, {
@@ -117,11 +136,27 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
     const tab = tabsMap.get(tabName)!;
 
     // Get visible columns for this tab
-    // CRITICAL: If visibleColumns exists (even if empty array), use it
-    // Only fallback to all columns if visibleColumns is undefined/null
-    const visibleColumns = tabConfig?.visibleColumns !== undefined 
-      ? tabConfig.visibleColumns 
-      : Object.keys(tabData);
+    // CRITICAL: If gradeSheetConfig exists, we MUST respect visibility settings
+    // If tabConfig exists but visibleColumns is undefined, that's an error - don't show all columns
+    // Only show all columns if there's NO config at all (gradeSheetConfig is null)
+    let visibleColumns: string[];
+    if (!gradeSheetConfig) {
+      // No config at all - show all columns as fallback
+      visibleColumns = Object.keys(tabData);
+    } else if (tabConfig?.visibleColumns !== undefined) {
+      // Config exists and has visibleColumns defined - use it (even if empty array)
+      visibleColumns = tabConfig.visibleColumns;
+    } else if (tabConfig) {
+      // Config exists for this tab but visibleColumns is undefined - this shouldn't happen
+      // But to be safe, show all columns (this is a data inconsistency issue)
+      console.warn(`Tab ${tabName} has config but no visibleColumns defined. Showing all columns.`);
+      visibleColumns = Object.keys(tabData);
+    } else {
+      // gradeSheetConfig exists but this specific tab has no config
+      // This means the tab was added to the sheet but not yet configured
+      // Show all columns as default
+      visibleColumns = Object.keys(tabData);
+    }
 
     // Normalize visible columns for comparison (handles case/whitespace mismatches)
     const normalizedVisibleColumns = new Set(
