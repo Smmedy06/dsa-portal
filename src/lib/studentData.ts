@@ -81,6 +81,16 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
     );
   }
 
+  // Validate tabs array if config exists
+  if (gradeSheetConfig && (!Array.isArray(gradeSheetConfig.tabs) || gradeSheetConfig.tabs.length === 0)) {
+    console.warn(
+      `Grade sheet config found but tabs array is invalid or empty. ` +
+      `This might cause visibility issues. Please reconfigure the grade sheet in admin panel.`
+    );
+    // Set tabs to empty array to prevent errors
+    gradeSheetConfig.tabs = [];
+  }
+
   const tabsMap = new Map<string, {
     name: string;
     items: Array<{
@@ -107,8 +117,10 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
 
     // Get tab config from grade sheet
     // CRITICAL: Match tab names exactly (case-insensitive, trimmed)
-    const tabConfig = gradeSheetConfig?.tabs 
+    const tabConfig = gradeSheetConfig?.tabs && Array.isArray(gradeSheetConfig.tabs)
       ? (gradeSheetConfig.tabs as any[]).find((t: any) => {
+          // Guard against null/undefined tab objects
+          if (!t || !t.name) return false;
           const configTabName = (t.name || '').trim().toLowerCase();
           const dataTabName = tabName.trim().toLowerCase();
           return configTabName === dataTabName;
@@ -117,7 +129,8 @@ export async function getStudentGrades(rollNumber: string, section?: 'CS-F24-M' 
 
     // Check if tab is visible (default to true if no config)
     // Explicitly check: if visible is undefined or true, show it; only hide if explicitly false
-    const tabVisible = tabConfig === null || tabConfig.visible === undefined || tabConfig.visible === true;
+    // Use optional chaining to safely access visible property
+    const tabVisible = !tabConfig || tabConfig.visible === undefined || tabConfig.visible === true;
 
     // If tab is hidden, completely skip it - don't add to map at all
     if (!tabVisible) {

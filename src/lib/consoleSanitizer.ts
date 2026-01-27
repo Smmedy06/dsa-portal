@@ -128,8 +128,11 @@ function sanitizeArgs(args: any[]): any[] {
  * Call this early in the app lifecycle
  */
 export function initConsoleSanitizer() {
-  if (!isProduction) {
-    return; // Don't sanitize in development
+  // Allow disabling sanitizer via environment variable for debugging
+  const disableSanitizer = import.meta.env.VITE_DISABLE_CONSOLE_SANITIZER === 'true';
+  
+  if (!isProduction || disableSanitizer) {
+    return; // Don't sanitize in development or if explicitly disabled
   }
 
   // Store original console methods
